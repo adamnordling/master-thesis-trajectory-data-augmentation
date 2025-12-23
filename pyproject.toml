@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trajectory-augmentation"
+version = "1.0.0"
+description = "Automated pipeline for generating and evaluating augmented trajectory data."
+readme = "README.md"
+requires-python = "~=3.11"
+authors = [{ name = "Adam Nordling"}]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+dependencies = [
+    "lightgbm>=4.0.0",
+    "numpy>=1.26.0",
+    "optuna>=3.4.0",
+    "pandas>=2.1.0",
+    "pyarrow>=14.0.0",
+    "scikit-learn>=1.3.0",
+    "scikit-learn-intelex>=2.0.0",
+    "scipy>=1.11.0",
+    "xgboost>=2.0.0",
+    "pyproj>=3.6.0",
+    "colorama>=0.4.6",
+    "matplotlib>=3.8.0",
+    "psutil>=5.9.0",
+    "pyyaml>=6.0",
+    "seaborn>=0.13.0",
+    "tqdm>=4.66.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",      # Replaces black, isort, and flake8
+    "mypy",      # For type checking
+    "pytest",
+    "pip-tools",
+    "pandas-stubs", # Helps Mypy understand pandas
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# --- NEW: RUFF CONFIGURATION (The "Everything" Tool) ---
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+# Enable "Preview" and "Unsafe Fixes" to let Ruff fix more things automatically
+preview = true
+unsafe-fixes = true
+
+[tool.ruff.lint]
+# Select rules:
+# E/F (Flake8), I (isort), N (naming), D (docstrings), UP (modern python)
+# Add "ANN" (Annotations) so Ruff at least helps you find where types are missing
+select = ["E", "F", "I", "N", "UP", "D", "ANN", "PT"]
+# D100, D104: Ignore missing docstrings in public modules/packages (common practice)
+ignore = ["D100", "D104", "ANN101", "ANN102"] # Ignore 'self' and 'cls' type hints (too annoying)
+
+[tool.ruff.lint.pydocstyle]
+convention = "google" # Professional standard for docstrings
+
+# --- NEW: MYPY CONFIGURATION (Type Checking) ---
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true # Force you to write types for functions
+ignore_missing_imports = true # Stops it from complaining about libraries without types
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "src"]
