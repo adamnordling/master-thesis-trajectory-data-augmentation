@@ -26,21 +26,22 @@ def _generate_random_points_on_circle_border(
     Returns:
         Tuple of (new_lats, new_lons).
     """
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     # Define the geodetic object once (using the standard WGS84 ellipsoid)
     geod = Geod(ellps="WGS84")
 
     # Generate all random angles (bearings) at once
-    bearings = np.random.uniform(0, 360, size=len(lats))
+    bearings = rng.uniform(0, 360, size=len(lats))
 
     # Calculate destination points.
     # geod.fwd requires distances in meters (convert km -> m)
+    # Geodetic calculation
     new_lons, new_lats, _ = geod.fwd(lons, lats, bearings, radii * 1000)
 
-    # Clamp for polar regions
+    # --- NEW CODE ---
     new_lats = np.clip(new_lats, -90.0, 90.0)
-
+    new_lons = (new_lons + 180) % 360 - 180  # Wrap longitudes to [-180, 180]
     return new_lats, new_lons
 
 
@@ -129,7 +130,8 @@ def shift_points_randomly(
                 # Deterministic seed generation per trajectory/augmentation pair
                 tid_numeric = int(hash(str(tid)) % 1_000_000)
                 current_seed = seed + aug + tid_numeric
-                np.random.seed(current_seed)
+                rng = np.random.default_rng(current_seed)
+
 
                 # Identify interior points (excluding start/end)
                 available_indices = traj.index[1:-1]
@@ -141,7 +143,7 @@ def shift_points_randomly(
                 num_points_to_select = min(num_points_to_select, len(available_indices))
 
                 # Select indices to modify
-                selected_indices = np.random.choice(available_indices, size=num_points_to_select, replace=False)
+                selected_indices = rng.choice(available_indices, size=num_points_to_select, replace=False)
 
                 # Prepare coordinates for vectorized calculation
                 # P1: Selected points, P2: The immediate next points

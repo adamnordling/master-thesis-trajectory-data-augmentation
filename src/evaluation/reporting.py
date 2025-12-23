@@ -80,9 +80,10 @@ def _load_and_parse_results(results_dir: str, datasets: Optional[List[str]] = No
 
     combined_df = pd.concat(df_list, ignore_index=True)
 
-    # Extract clean strategy name from feature_type column
-    combined_df['strategy'] = combined_df['feature_type'].apply(
-        lambda ft: ft.split('merged_')[-1].split('_p')[0] if 'merged' in str(ft) else 'baseline'
+    is_merged = combined_df['feature_type'].str.contains('merged', na=False)
+    combined_df['strategy'] = 'baseline'
+    combined_df.loc[is_merged, 'strategy'] = (
+        combined_df['feature_type'].str.split('merged_').str[-1].str.split('_p').str[0]
     )
 
     return combined_df

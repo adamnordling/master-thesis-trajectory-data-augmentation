@@ -31,8 +31,7 @@ class RandomTrajectorySelection(TrajectorySelectionMethod):
         unique_labels = trajectory_feats_df['label'].unique()
         selected_tids = []
 
-        if self.seed is not None:
-            np.random.seed(self.seed)
+        rng = np.random.default_rng(self.seed)
 
         total_to_select = int(len(unique_tids) * self.proportion)
         total_trajectories = len(unique_tids)
@@ -49,7 +48,7 @@ class RandomTrajectorySelection(TrajectorySelectionMethod):
             num_to_select = min(num_to_select, len(label_tids))
 
             if num_to_select > 0:
-                selected = np.random.choice(label_tids, num_to_select, replace=False)
+                selected = rng.choice(label_tids, num_to_select, replace=False)
                 selected_tids.extend(selected)
 
         logger.info(f"Random Strategy selected {len(selected_tids)} trajectories.")
@@ -97,10 +96,10 @@ class SelectTrajectoryBasedOnOutlierness(TrajectorySelectionMethod):
             # Check for variance
             if features.std() < 1e-9:
                 logger.warning(f"Label {label} has zero variance. Falling back to random selection.")
-                np.random.seed(self.seed)
+                rng = np.random.default_rng(self.seed)
                 cnt = min(num_per_label, len(tids))
                 if cnt > 0:
-                    selected_tids.extend(np.random.choice(tids, cnt, replace=False))
+                    selected_tids.extend(rng.choice(tids, cnt, replace=False))
                 continue
 
             # 1. Calculate Average Distance
@@ -202,12 +201,8 @@ class SelectTrajectoryBasedOnDiversityMaximization(TrajectorySelectionMethod):
                     c_select = max(1, int(num_per_label * c_prop))
 
                     # Random select within cluster
-                    np.random.seed(self.seed + c_id)
-                    chosen = np.random.choice(
-                        c_samples['tid'].values,
-                        min(c_select, len(c_samples)),
-                        replace=False
-                    )
+                    rng = np.random.default_rng(self.seed + c_id)
+                    chosen = rng.choice(c_samples['tid'].values, min(c_select, len(c_samples)), replace=False)
                     selected_tids.extend(chosen)
 
             except Exception as e:

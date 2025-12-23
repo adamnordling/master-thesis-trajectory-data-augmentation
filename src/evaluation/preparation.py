@@ -28,14 +28,26 @@ def prepare_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, LabelEncode
     x = df.drop(columns=['tid', 'label'])
     y = df['label']
 
-    # Robust Cleaning:
-    # 1. Fill NaNs with 0 (often happens in speed calc if time_diff is 0)
-    # 2. Replace Infinity with 0
-    x = x.fillna(0).replace([np.inf, -np.inf], 0)
+    # 1. Convert Infs to NaN so they can be calculated
+    x = x.replace([np.inf, -np.inf], np.nan)
+
+    # 2. Compute medians for all columns
+    column_medians = x.median()
+
+    # 3. Fill NaNs with the median (Fixes most cases)
+    x = x.fillna(column_medians)
+
+    # 4. FINAL CATCH-ALL:
+    # If a column was 100% empty, the median is NaN.
+    # We fill those with 0 so the ML model doesn't crash.
+    x = x.fillna(0)
 
     # Encode target labels
+    df = df.dropna(subset=['label'])
+    y = df['label'].astype(str)
+
     le = LabelEncoder()
-    y_encoded = le.fit_transform(y.astype(str))
+    y_encoded = le.fit_transform(y)
 
     # Return as Series with index preserved to align with X
     y_series = pd.Series(y_encoded, index=y.index, name='label')

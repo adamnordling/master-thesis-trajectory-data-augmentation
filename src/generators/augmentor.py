@@ -101,4 +101,9 @@ def apply_augmentation_pipeline(
     final_df = pd.concat([augmented_df, non_selected_df], ignore_index=True)
 
     logger.info(f"Pipeline complete. Final dataset shape: {final_df.shape}")
+    # --- ADD THIS BEFORE RETURNING final_df ---
+    before = trajectory_points_df.drop_duplicates('tid')['label'].value_counts(normalize=True)
+    after = final_df.drop_duplicates('tid')['label'].value_counts(normalize=True)
+    logger.info(f"Class distribution check (Before vs After): \n{before} \nvs\n {after}")
+
     return final_df

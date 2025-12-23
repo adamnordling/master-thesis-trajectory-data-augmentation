@@ -1,4 +1,5 @@
 import os
+import gc
 import logging
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -60,6 +61,15 @@ def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
 
         df = df.sort_values(by=['tid', 'time'])
 
+        # Identify trajectories that never actually move (Lat and Lon never change)
+        traj_variance = df.groupby('tid')[['lat', 'lon']].nunique()
+        stationary_tids = traj_variance[(traj_variance['lat'] <= 1) & (traj_variance['lon'] <= 1)].index
+
+        if not stationary_tids.empty:
+            logger.info(f"[{dataset_name}] Removing {len(stationary_tids)} stationary trajectories (no movement).")
+            df = df[~df['tid'].isin(stationary_tids)]
+        # ---------------------------
+
         # 3. Filter single-trajectory classes
         # StratifiedShuffleSplit throws errors if a class has only 1 member.
         traj_labels = df.drop_duplicates(subset='tid').set_index('tid')['label']
@@ -84,6 +94,7 @@ def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
 
         train_df = df[df['tid'].isin(train_tids)].copy()
         test_df = df[df['tid'].isin(test_tids)].copy()
+        del df  # Clear the large raw dataset from memory
 
         # 5. Save (Feather Only)
         # Using save_dataframe utility ensures directory creation and clean saves
@@ -96,7 +107,8 @@ def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
         import traceback
         traceback.print_exc()
         return {"success": False, "task": f"Prepare {dataset_name}", "error": str(e)}
-
+    finally:
+        gc.collect()
 
 def extract_features_worker(filepath: str) -> Dict[str, Any]:
     """
@@ -124,7 +136,8 @@ def extract_features_worker(filepath: str) -> Dict[str, Any]:
 
     except Exception as e:
         return {"success": False, "task": filepath, "error": str(e)}
-
+    finally:
+        gc.collect()
 
 def augment_data_worker(task_args: Tuple) -> Dict[str, Any]:
     """
@@ -176,7 +189,8 @@ def augment_data_worker(task_args: Tuple) -> Dict[str, Any]:
 
     except Exception as e:
         return {"success": False, "task": f"Augment {dataset_name}", "error": str(e)}
-
+    finally:
+        gc.collect()
 
 def extract_aug_features_worker(task_args: Tuple) -> Dict[str, Any]:
     """
@@ -210,7 +224,12 @@ def extract_aug_features_worker(task_args: Tuple) -> Dict[str, Any]:
             # 2. Ensure Unique TIDs
             # We append the augmentation ID to the TID to make it unique (e.g., "123_1")
             # This is critical for the feature extraction to group correctly
-            aug_only_df['tid'] = aug_only_df['tid'].astype(str) + '_' + aug_only_df['augmented'].astype(str)
+            # --- NEW CODE (Bulletproof string concatenation) ---
+            # Using .str.cat ensures that if TID was "001", it stays "001_1"
+            # and never becomes "1_1" or "1.0_1"
+            aug_only_df['tid'] = aug_only_df['tid'].astype(str).str.cat(
+                aug_only_df['augmented'].astype(str), sep='_'
+            )
 
             # Clean up columns not needed for extraction
             aug_only_df = aug_only_df.drop(columns=['augmented'])
@@ -234,3 +253,5 @@ def extract_aug_features_worker(task_args: Tuple) -> Dict[str, Any]:
 
     except Exception as e:
         return {"success": False, "task": f"ExtractAug {dataset_name}", "error": str(e)}
+    finally:
+        gc.collect()

@@ -70,7 +70,7 @@ def _compute_stats(data: Union[np.ndarray, List[float]], prefix: str) -> Dict[st
     mean_val = np.mean(data)
 
     # Handle constant values (zero variance)
-    if data_range < 1e-9 or std_val < 1e-9:
+    if np.isclose(data_range, 0, atol=1e-9) or np.isclose(std_val, 0, atol=1e-9):
         return {
             f"{prefix}_0s": float(np.sum(data == 0)),
             f"{prefix}_mean": float(mean_val),
@@ -143,10 +143,9 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
         trajectory_features = {"tid": tid}
 
         if len(group) > 1:
-            segment_lengths = _calculate_distances_vectorized(
-                group["lat"].values[:-1], group["lon"].values[:-1], group["lat"].values[1:], group["lon"].values[1:]
-            )
-            time_diffs = group["time"].diff().dt.total_seconds().values[1:]
+            lats, lons = group["lat"].to_numpy(), group["lon"].to_numpy()
+            segment_lengths = _calculate_distances_vectorized(lats[:-1], lons[:-1], lats[1:], lons[1:])
+            time_diffs = group["time"].diff().dt.total_seconds().to_numpy()[1:]
         else:
             segment_lengths = []
             time_diffs = []
