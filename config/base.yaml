@@ -1,0 +1,22 @@
+project_name: "TrajectoryAugmentation"
+
+# Random seeds for reproducibility
+# Used in: src/pipeline/manager.py (loops over seeds)
+# Used in: src/evaluation/models.py (set_reproducibility)
+seeds: [1415, 9265, 3589, 7932, 3846, 2643, 3832, 7950, 2884, 1971,
+        6939, 9375, 1058, 2097, 4944, 5923, 781, 6406, 2862, 899]
+
+# File system paths (Relative to project root)
+# Used in: src/pipeline/manager.py (constructing paths)
+# Used in: src/pipeline/workers.py (reading/writing data)
+paths:
+  raw_data: "data/raw"
+  aug_data: "data/augmented"
+  results: "data/output"
+
+# Processing settings
+# Used in: src/pipeline/manager.py (configuring multiprocessing)
+processing:
+  parallel: true
+  cpu_usage_limit: 0.8
+  chunk_size: 1

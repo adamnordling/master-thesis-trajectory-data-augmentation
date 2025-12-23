@@ -1,0 +1,21 @@
+# Used in: src/main.py (to determine what to run if no args provided)
+# Used in: src/pipeline/tuning.py (for the optimization loop)
+active_strategies:
+  - "random"
+  - "outlierness"
+  - "diversity"
+  - "representativeness"
+  - "uncertainty"
+
+# Specific parameters for strategy logic
+# Used in: src/strategies/selectors.py (defaults)
+parameters:
+  diversity:
+    k_clusters: 5
+    batch_size: 256  # For MiniBatchKMeans
+
+  outlierness:
+    default_radius: 1.0
+
+  # Uncertainty does not require special params right now as the model is internal
+  uncertainty: { }

@@ -1,0 +1,94 @@
+# --- Python & Build Artifacts ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Virtual Environments ---
+# Ignore all standard names for virtual envs
+.env
+.venv
+env/
+venv/
+ENV/
+
+# --- IDE & OS Metadata ---
+# Never commit local editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.project
+.classpath
+.settings/
+
+# --- Project Data (Crucial Section) ---
+# 1. Ignore global data file types (safety net)
+*.csv
+*.xls
+*.xlsx
+*.h5
+*.hdf5
+*.parquet
+*.feather
+*.pkl
+*.pickle
+*.npy
+*.npz
+*.db
+*.sqlite
+
+# 2. Ignore specific data directories (but allow overriding later)
+data/augmented/*
+data/output/*
+data/raw/*
+
+# Ignore everything inside analysis
+data/output/analysis/*
+
+# EXCEPT the images folder inside analysis
+!data/output/analysis/images/
+!data/output/analysis/images/**
+
+# Allow specific md file from raw folder
+!data/raw/raw_datasets.md
+
+# Ignore utilities
+utilities/
+
+# --- Results & Logs ---
+results/
+trial_results/
+final_reports/
+
+
+# Execution logs
+logs/
+*.log
+
+# --- Testing & Quality ---
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/

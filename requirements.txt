@@ -1,0 +1,53 @@
+# ===================================================================
+#                      PROJECT REQUIREMENTS
+# ===================================================================
+# This file was generated to pin the exact versions of all project
+# dependencies for ensuring scientific reproducibility.
+#
+# To install these exact versions, run:
+# pip install -r requirements.txt
+# ===================================================================
+
+# --- Core Data Science & ML ---
+numpy==1.26.4
+pandas==2.2.2
+scipy==1.13.1
+pyarrow==16.1.0                # For .feather file support
+scikit-learn==1.5.0
+scikit-learn-intelex==2024.2.0  # For Intel hardware acceleration
+xgboost==2.0.3
+lightgbm==4.3.0
+
+# --- Hyperparameter Optimization ---
+optuna==3.6.1
+
+# --- Geospatial Calculations ---
+pyproj==3.6.1
+
+# --- Utilities & Visualization ---
+colorama==0.4.6                # For colored terminal output
+matplotlib==3.8.4
+psutil==5.9.8
+pyyaml==6.0.1
+seaborn==0.13.2
+tqdm==4.66.4
+
+# ===================================================================
+#                 SUB-DEPENDENCIES (Dependencies of the above)
+# ===================================================================
+# These packages are required by the libraries listed above. They are
+# included here to create a fully locked and reproducible environment.
+
+alembic==1.13.1
+cmaes==0.10.0
+greenlet==3.0.3
+joblib==1.4.2
+mako==1.3.5
+packaging==24.0
+pillow==10.3.0
+python-dateutil==2.9.0
+pytz==2024.1
+six==1.16.0
+sqlalchemy==2.0.30
+threadpoolctl==3.5.0
+typing-extensions==4.11.0
