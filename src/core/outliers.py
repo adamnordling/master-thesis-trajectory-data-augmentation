@@ -1,19 +1,16 @@
 import logging
+from typing import Any, Dict
+
 import numpy as np
 from scipy.spatial.distance import pdist
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.neighbors import NearestNeighbors
-from typing import Dict, Any, Union
+from sklearn.preprocessing import MinMaxScaler
 
 # Initialize logger
 logger = logging.getLogger(__name__)
 
 
-def detect_outliers_dbos(
-        dataset: np.ndarray,
-        d: float = 1.0,
-        fraction: float = 0.05
-) -> Dict[str, Any]:
+def detect_outliers_dbos(dataset: np.ndarray, d: float = 1.0, fraction: float = 0.05) -> Dict[str, Any]:
     """
     Implements Density-Based Outlier Selection (DBOS).
 
@@ -38,16 +35,16 @@ def detect_outliers_dbos(
     # Validate inputs
     if not np.issubdtype(dataset.dtype, np.number):
         logger.error("Dataset input contains non-numeric data.")
-        raise ValueError('Dataset input is not numeric')
+        raise ValueError("Dataset input is not numeric")
 
     if not isinstance(d, (int, float)) or not isinstance(fraction, (int, float)):
-        raise ValueError('Parameters d and fraction must be numeric')
+        raise ValueError("Parameters d and fraction must be numeric")
 
     n_samples = dataset.shape[0]
     logger.debug(f"Running DBOS on {n_samples} samples with radius={d:.4f}, fraction={fraction}")
 
     # Use Ball Tree algorithm for efficient radius queries in higher dimensions
-    nn = NearestNeighbors(radius=d, algorithm='ball_tree', metric='euclidean')
+    nn = NearestNeighbors(radius=d, algorithm="ball_tree", metric="euclidean")
     nn.fit(dataset)
 
     # Get neighbor counts efficiently
@@ -61,9 +58,9 @@ def detect_outliers_dbos(
     threshold = n_samples * fraction
 
     # Classify each observation
-    classification = np.where(neighborhood < threshold, 'Outlier', 'Inlier')
+    classification = np.where(neighborhood < threshold, "Outlier", "Inlier")
 
-    num_outliers = np.sum(classification == 'Outlier')
+    num_outliers = np.sum(classification == "Outlier")
     logger.info(f"DBOS detection complete. Found {num_outliers} outliers ({num_outliers / n_samples:.1%}).")
 
     # Invert neighborhood counts for outlier scoring
@@ -75,14 +72,10 @@ def detect_outliers_dbos(
     outlier_scores = scaler.fit_transform(inverted_neighborhood.reshape(-1, 1))
 
     # Return results
-    return {
-        'neighbors': neighborhood,
-        'scores': outlier_scores,
-        'classification': classification
-    }
+    return {"neighbors": neighborhood, "scores": outlier_scores, "classification": classification}
 
 
-def find_average_distance(dataset: np.ndarray, sample_size: int = 1000) -> float:
+def find_average_distance(dataset: np.ndarray, sample_size: int = 1000, seed: int = 42) -> float:
     """
     Calculates the average pairwise Euclidean distance for a dataset.
 
@@ -100,13 +93,14 @@ def find_average_distance(dataset: np.ndarray, sample_size: int = 1000) -> float
         dataset = np.array(dataset)
 
     if not np.issubdtype(dataset.dtype, np.number):
-        raise ValueError('Dataset input is not numeric')
+        raise ValueError("Dataset input is not numeric")
 
     # Sampling strategy for scalability
     if len(dataset) > sample_size:
         logger.debug(f"Dataset size ({len(dataset)}) > {sample_size}. Sampling for distance calculation.")
         # Ensure reproducibility if needed by setting seed externally or adding param
-        indices = np.random.choice(len(dataset), sample_size, replace=False)
+        rng = np.random.default_rng(seed)
+        indices = rng.choice(len(dataset), sample_size, replace=False)
         sample = dataset[indices]
     else:
         sample = dataset
@@ -114,7 +108,7 @@ def find_average_distance(dataset: np.ndarray, sample_size: int = 1000) -> float
     # Compute pairwise distances on the sample
     # pdist returns a condensed distance matrix (1D array)
     try:
-        pairwise_distances = pdist(sample, metric='euclidean')
+        pairwise_distances = pdist(sample, metric="euclidean")
 
         # Handle case where sample might be too small (0 or 1 point)
         if len(pairwise_distances) == 0:

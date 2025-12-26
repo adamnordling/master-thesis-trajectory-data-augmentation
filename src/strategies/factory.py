@@ -1,11 +1,12 @@
 from typing import Type
+
 from src.strategies.base import TrajectorySelectionMethod
 from src.strategies.selectors import (
     RandomTrajectorySelection,
-    SelectTrajectoryBasedOnOutlierness,
     SelectTrajectoryBasedOnDiversityMaximization,
+    SelectTrajectoryBasedOnOutlierness,
     SelectTrajectoryBasedOnRepresentativeness,
-    SelectTrajectoryBasedOnUncertainty
+    SelectTrajectoryBasedOnUncertainty,
 )
 
 
@@ -24,7 +25,7 @@ def get_strategy_class(name: str) -> Type[TrajectorySelectionMethod]:
         "outlierness": SelectTrajectoryBasedOnOutlierness,
         "diversity": SelectTrajectoryBasedOnDiversityMaximization,
         "representativeness": SelectTrajectoryBasedOnRepresentativeness,
-        "uncertainty": SelectTrajectoryBasedOnUncertainty
+        "uncertainty": SelectTrajectoryBasedOnUncertainty,
     }
 
     if name.lower() not in mapping:

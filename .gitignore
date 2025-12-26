@@ -65,6 +65,7 @@ data/raw/*
 
 # Ignore everything inside analysis
 data/output/analysis/*
+quality_logs/
 
 # EXCEPT the images folder inside analysis
 !data/output/analysis/images/

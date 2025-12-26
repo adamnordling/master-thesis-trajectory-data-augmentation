@@ -1,7 +1,8 @@
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import LabelEncoder
 from typing import Tuple
+
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
 
 
 def prepare_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, LabelEncoder]:
@@ -21,12 +22,12 @@ def prepare_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, LabelEncode
         y_encoded: Series of integer labels.
         le: The fitted LabelEncoder (useful if we need to inverse transform later).
     """
-    if 'label' not in df.columns or 'tid' not in df.columns:
+    if "label" not in df.columns or "tid" not in df.columns:
         raise ValueError("Input DataFrame must contain 'tid' and 'label' columns.")
 
     # Drop metadata to isolate features
-    x = df.drop(columns=['tid', 'label'])
-    y = df['label']
+    x = df.drop(columns=["tid", "label"])
+    y = df["label"]
 
     # 1. Convert Infs to NaN so they can be calculated
     x = x.replace([np.inf, -np.inf], np.nan)
@@ -43,13 +44,13 @@ def prepare_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, LabelEncode
     x = x.fillna(0)
 
     # Encode target labels
-    df = df.dropna(subset=['label'])
-    y = df['label'].astype(str)
+    df = df.dropna(subset=["label"])
+    y = df["label"].astype(str)
 
     le = LabelEncoder()
     y_encoded = le.fit_transform(y)
 
     # Return as Series with index preserved to align with X
-    y_series = pd.Series(y_encoded, index=y.index, name='label')
+    y_series = pd.Series(y_encoded, index=y.index, name="label")
 
     return x, y_series, le

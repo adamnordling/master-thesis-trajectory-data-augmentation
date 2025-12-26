@@ -1,28 +1,33 @@
-import os
-import pandas as pd
 import logging
-from typing import Optional
+import os
+from typing import Any, Dict, Optional
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-def load_dataframe(filepath: str, dtype: Optional[dict] = None) -> pd.DataFrame:
+def load_dataframe(filepath: str, dtype: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
     """
     Robustly loads a DataFrame from CSV or Feather format.
+
+    Enforces coordinate precision and Trajectory ID string types upon loading.
     """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Data file not found: {filepath}")
 
-    default_dtype = {'tid': str, 'label': str}
+    # Use Any for values to satisfy Mypy's complex Union requirements for read_csv
+    default_dtype: Dict[str, Any] = {"tid": str, "label": str}
     if dtype:
         default_dtype.update(dtype)
 
     try:
         # 1. IDENTIFY AND LOAD FORMAT
-        if filepath.endswith('.feather'):
-            # memory_map is for READING only. It makes Optuna trials much faster.
-            df = pd.read_feather(filepath, memory_map=True)
-        elif filepath.endswith('.csv'):
+        if filepath.endswith(".feather"):
+            # Note: memory_map is handled internally by pyarrow;
+            # not exposed as a kwarg in the pandas wrapper.
+            df = pd.read_feather(filepath)
+        elif filepath.endswith(".csv"):
             df = pd.read_csv(filepath, dtype=default_dtype)
         else:
             raise ValueError(f"Unsupported file format: {filepath}")
@@ -30,16 +35,16 @@ def load_dataframe(filepath: str, dtype: Optional[dict] = None) -> pd.DataFrame:
         # 2. STANDARDIZE DATA (Post-Load)
 
         # Ensure TID is always a string (prevents leading zero bug)
-        if 'tid' in df.columns:
-            df['tid'] = df['tid'].astype(str)
+        if "tid" in df.columns:
+            df["tid"] = df["tid"].astype(str)
 
         # Ensure Time is datetime
-        if 'time' in df.columns:
-            df['time'] = pd.to_datetime(df['time'], errors='coerce')
+        if "time" in df.columns:
+            df["time"] = pd.to_datetime(df["time"], errors="coerce")
 
-        # Ensure Coords are float64 (Scientific precision)
-        if {'lat', 'lon'}.issubset(df.columns):
-            df[['lat', 'lon']] = df[['lat', 'lon']].astype('float64')
+        # Ensure Coords are float64 (Scientific precision for geodetic math)
+        if {"lat", "lon"}.issubset(df.columns):
+            df[["lat", "lon"]] = df[["lat", "lon"]].astype("float64")
 
         return df
 
@@ -48,19 +53,20 @@ def load_dataframe(filepath: str, dtype: Optional[dict] = None) -> pd.DataFrame:
         raise
 
 
-def save_dataframe(df: pd.DataFrame, filepath: str):
+def save_dataframe(df: pd.DataFrame, filepath: str) -> None:
     """
     Saves a DataFrame to CSV or Feather, creating parent directories if needed.
+
+    Utilizes LZ4 compression for Feather files to balance speed and disk usage.
     """
     try:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
-        if filepath.endswith('.feather'):
+        if filepath.endswith(".feather"):
             # reset_index is required for Feather format.
-            # compression='lz4' is the best for speed/space.
-            # NOTE: memory_map is NOT used here.
-            df.reset_index(drop=True).to_feather(filepath, compression='lz4')
-        elif filepath.endswith('.csv'):
+            # compression='lz4' provides high-speed I/O for trajectory data.
+            df.reset_index(drop=True).to_feather(filepath, compression="lz4")
+        elif filepath.endswith(".csv"):
             df.to_csv(filepath, index=False)
         else:
             raise ValueError(f"Unsupported export format: {filepath}")

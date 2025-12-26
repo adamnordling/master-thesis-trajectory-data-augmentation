@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -18,21 +18,25 @@ def _calculate_distances_vectorized(
 ) -> List[float]:
     """
     Fast and accurate vectorized distance calculation using pyproj.
+
     Returns distances in meters.
     """
     if len(lat1) == 0:
         return []
 
     _, _, distances_meters = _GEOD.inv(lon1, lat1, lon2, lat2)
-    return distances_meters.tolist()
+    # Cast to List[float] to satisfy Mypy's strict return type check
+    return cast(List[float], distances_meters.tolist())
 
 
-def _compute_stats(data: Union[np.ndarray, List[float]], prefix: str) -> Dict[str, float]:
+def _compute_stats(data_in: Union[np.ndarray, List[float]], prefix: str) -> Dict[str, float]:
     """
     Compute statistical features (mean, std, skew, kurt, quantiles).
+
+    Calculates 19 standard kinematic features for a given distribution.
     """
-    if not isinstance(data, np.ndarray):
-        data = np.array(data)
+    # Force input into a numpy array so .size and math operations work consistently
+    data: np.ndarray = np.asarray(data_in)
 
     stat_keys = [
         "0s",
@@ -66,10 +70,10 @@ def _compute_stats(data: Union[np.ndarray, List[float]], prefix: str) -> Dict[st
 
     # --- CALCULATIONS ---
     data_range = np.ptp(data)
-    std_val = np.std(data)  # <--- FIXED NAME (was data_std)
+    std_val = np.std(data)
     mean_val = np.mean(data)
 
-    # Handle constant values (zero variance)
+    # Handle constant values (zero variance) using robust float comparison
     if np.isclose(data_range, 0, atol=1e-9) or np.isclose(std_val, 0, atol=1e-9):
         return {
             f"{prefix}_0s": float(np.sum(data == 0)),
@@ -85,7 +89,7 @@ def _compute_stats(data: Union[np.ndarray, List[float]], prefix: str) -> Dict[st
             f"{prefix}_quant_95": float(np.percentile(data, 95)),
             f"{prefix}_quant_max": float(np.max(data)),
             f"{prefix}_range": float(data_range),
-            f"{prefix}_sd": float(std_val),  # <--- FIXED USE
+            f"{prefix}_sd": float(std_val),
             f"{prefix}_vcoef": 0.0,
             f"{prefix}_mad": 0.0,
             f"{prefix}_iqr": 0.0,
@@ -94,12 +98,7 @@ def _compute_stats(data: Union[np.ndarray, List[float]], prefix: str) -> Dict[st
         }
 
     # Complex stats
-    # Explicit check for non-zero mean to avoid division warning
-    if abs(mean_val) > 1e-9:
-        vcoef_val = std_val / mean_val
-    else:
-        vcoef_val = 0.0
-
+    vcoef_val = std_val / mean_val if abs(mean_val) > 1e-9 else 0.0
     q75, q25 = np.percentile(data, [75, 25])
     iqr_val = q75 - q25
 
@@ -129,8 +128,10 @@ def _compute_stats(data: Union[np.ndarray, List[float]], prefix: str) -> Dict[st
 def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Extracts geometric and kinematic features from trajectory data.
+
+    Processes trajectory points grouped by TID to generate fractal and kinematic descriptors.
     """
-    features = []
+    features: List[Dict[str, Any]] = []
 
     required_cols = {"tid", "lat", "lon", "time", "label"}
     if not required_cols.issubset(df.columns):
@@ -140,15 +141,18 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
 
     for tid, group in groups:
         group = group.sort_values("time").reset_index(drop=True)
-        trajectory_features = {"tid": tid}
+        trajectory_features: Dict[str, Any] = {"tid": str(tid)}
 
         if len(group) > 1:
-            lats, lons = group["lat"].to_numpy(), group["lon"].to_numpy()
+            lats = group["lat"].to_numpy(dtype="float64")
+            lons = group["lon"].to_numpy(dtype="float64")
             segment_lengths = _calculate_distances_vectorized(lats[:-1], lons[:-1], lats[1:], lons[1:])
-            time_diffs = group["time"].diff().dt.total_seconds().to_numpy()[1:]
+
+            # Mypy suppression for known Pandas-stubs Timedelta limitation
+            time_diffs = group["time"].diff().dt.total_seconds().to_numpy()[1:]  # type: ignore[attr-defined]
         else:
             segment_lengths = []
-            time_diffs = []
+            time_diffs = np.array([], dtype=float)
 
         # --- 1. Distance-based geometry (Fractal Dimensions) ---
         start_coords_lat = []
@@ -172,7 +176,7 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
                     end_coords_lat.append(group.iloc[end]["lat"])
                     end_coords_lon.append(group.iloc[end]["lon"])
 
-                    total_path_distance = sum(segment_lengths[start:end]) if segment_lengths else 0
+                    total_path_distance = sum(segment_lengths[start:end]) if segment_lengths else 0.0
                     path_distances.append(total_path_distance)
                     is_valid_segment.append(True)
                 else:
@@ -184,7 +188,6 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
                 _, _, segment_distances_meters = _GEOD.inv(
                     start_coords_lon, start_coords_lat, end_coords_lon, end_coords_lat
                 )
-                # Avoid division by zero in signature calc
                 denom = np.maximum(np.array(path_distances), 0.001)
                 calculated_signatures = segment_distances_meters / denom
             except Exception:
@@ -198,7 +201,7 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
                 else:
                     signatures.append(0.0)
         else:
-            signatures = [0.0] * len(is_valid_segment)
+            signatures = [0.0] * (15)  # Sum of segments for levels 1-5 is 15
 
         # Assign columns
         idx = 0
@@ -209,18 +212,21 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
                 idx += 1
 
         # --- 2. Kinematics ---
-        speeds = []
-        angles = []
+        speeds = np.array([], dtype=float)
+        angles = np.array([], dtype=float)
 
         if len(group) > 1:
+            seg_len_arr = np.array(segment_lengths)
             speeds = np.divide(
-                segment_lengths, time_diffs, out=np.zeros_like(segment_lengths, dtype=float), where=time_diffs != 0
+                seg_len_arr, time_diffs, out=np.zeros_like(seg_len_arr, dtype=float), where=time_diffs != 0
             )
 
             if len(group) > 2:
-                v = np.diff(group[["lat", "lon"]].values, axis=0)
-                v1 = v[:-1]
-                v2 = v[1:]
+                # v = np.diff(group[["lat", "lon"]].to_numpy(), axis=0) # Original line
+                # Ensuring high precision for vector math
+                coords = group[["lat", "lon"]].to_numpy(dtype="float64")
+                v = np.diff(coords, axis=0)
+                v1, v2 = v[:-1], v[1:]
                 dot = np.einsum("ij,ij->i", v1, v2)
                 norm_v1 = np.linalg.norm(v1, axis=1)
                 norm_v2 = np.linalg.norm(v2, axis=1)
@@ -230,7 +236,7 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
                 cos_theta[valid] = dot[valid] / (norm_v1[valid] * norm_v2[valid])
                 angles = np.degrees(np.arccos(np.clip(cos_theta, -1.0, 1.0)))
 
-        accelerations = []
+        accelerations = np.array([], dtype=float)
         if len(speeds) > 1:
             speed_diffs = np.diff(speeds)
             accel_times = (time_diffs[:-1] + time_diffs[1:]) / 2

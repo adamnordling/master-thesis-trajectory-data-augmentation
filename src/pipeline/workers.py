@@ -1,9 +1,10 @@
-import os
 import gc
 import logging
+import os
+from typing import Any, Dict, Tuple
+
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
-from typing import Dict, Any, Tuple
 
 # --- Internal Imports ---
 from src.core.features import extract_trajectory_features
@@ -17,11 +18,11 @@ logger = logging.getLogger(__name__)
 # --- PATH CONFIGURATION ---
 # Determine project root relative to this file: src/pipeline/workers.py -> ../../
 current_dir = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.abspath(os.path.join(current_dir, '..', '..'))
+ROOT_DIR = os.path.abspath(os.path.join(current_dir, "..", ".."))
 
 # Define standard data directories
-RAW_DATA_DIR = os.path.join(ROOT_DIR, 'data', 'raw')
-AUG_DATA_DIR = os.path.join(ROOT_DIR, 'data', 'augmented')
+RAW_DATA_DIR = os.path.join(ROOT_DIR, "data", "raw")
+AUG_DATA_DIR = os.path.join(ROOT_DIR, "data", "augmented")
 
 
 def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
@@ -40,46 +41,46 @@ def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
 
         # Input path: data/raw/{filename}
         # Note: Raw data is always CSV
-        raw_filepath = os.path.join(RAW_DATA_DIR, dataset_config['csv_file'])
+        raw_filepath = os.path.join(RAW_DATA_DIR, dataset_config["csv_file"])
 
         # 1. Load Raw Data
         # We handle raw loading manually here because raw CSVs often lack headers
         # or require specific dtype mapping that generic load_dataframe might miss.
         try:
-            df = pd.read_csv(raw_filepath, dtype={'tid': str})
+            df = pd.read_csv(raw_filepath, dtype={"tid": str})
         except ValueError:
             # Fallback for datasets without headers (assume col 0 is TID)
             logger.info(f"[{dataset_name}] No header found. Using col 0 as TID.")
             df = pd.read_csv(raw_filepath, dtype={0: str})
-            df.rename(columns={df.columns[0]: 'tid'}, inplace=True)
+            df.rename(columns={df.columns[0]: "tid"}, inplace=True)
 
         # 2. Cleaning
         initial_rows = len(df)
-        df.dropna(subset=['lat', 'lon', 'label'], inplace=True)
+        df.dropna(subset=["lat", "lon", "label"], inplace=True)
         if len(df) < initial_rows:
             logger.debug(f"[{dataset_name}] Dropped {initial_rows - len(df)} rows with missing values.")
 
-        df = df.sort_values(by=['tid', 'time'])
+        df = df.sort_values(by=["tid", "time"])
 
         # Identify trajectories that never actually move (Lat and Lon never change)
-        traj_variance = df.groupby('tid')[['lat', 'lon']].nunique()
-        stationary_tids = traj_variance[(traj_variance['lat'] <= 1) & (traj_variance['lon'] <= 1)].index
+        traj_variance = df.groupby("tid")[["lat", "lon"]].nunique()
+        stationary_tids = traj_variance[(traj_variance["lat"] <= 1) & (traj_variance["lon"] <= 1)].index
 
         if not stationary_tids.empty:
             logger.info(f"[{dataset_name}] Removing {len(stationary_tids)} stationary trajectories (no movement).")
-            df = df[~df['tid'].isin(stationary_tids)]
+            df = df[~df["tid"].isin(stationary_tids)]
         # ---------------------------
 
         # 3. Filter single-trajectory classes
         # StratifiedShuffleSplit throws errors if a class has only 1 member.
-        traj_labels = df.drop_duplicates(subset='tid').set_index('tid')['label']
+        traj_labels = df.drop_duplicates(subset="tid").set_index("tid")["label"]
         class_counts = traj_labels.value_counts()
         single_member_classes = class_counts[class_counts < 2].index.tolist()
 
         if single_member_classes:
             logger.info(f"[{dataset_name}] Exlcuding {len(single_member_classes)} classes with < 2 trajectories.")
             tids_to_exclude = traj_labels[traj_labels.isin(single_member_classes)].index
-            df = df[~df['tid'].isin(tids_to_exclude)]
+            df = df[~df["tid"].isin(tids_to_exclude)]
             traj_labels = traj_labels.drop(tids_to_exclude)
 
         if traj_labels.empty:
@@ -92,8 +93,8 @@ def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
         train_tids = traj_labels.index[train_idx]
         test_tids = traj_labels.index[test_idx]
 
-        train_df = df[df['tid'].isin(train_tids)].copy()
-        test_df = df[df['tid'].isin(test_tids)].copy()
+        train_df = df[df["tid"].isin(train_tids)].copy()
+        test_df = df[df["tid"].isin(test_tids)].copy()
         del df  # Clear the large raw dataset from memory
 
         # 5. Save (Feather Only)
@@ -105,10 +106,12 @@ def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         return {"success": False, "task": f"Prepare {dataset_name}", "error": str(e)}
     finally:
         gc.collect()
+
 
 def extract_features_worker(filepath: str) -> Dict[str, Any]:
     """
@@ -138,6 +141,7 @@ def extract_features_worker(filepath: str) -> Dict[str, Any]:
         return {"success": False, "task": filepath, "error": str(e)}
     finally:
         gc.collect()
+
 
 def augment_data_worker(task_args: Tuple) -> Dict[str, Any]:
     """
@@ -178,7 +182,7 @@ def augment_data_worker(task_args: Tuple) -> Dict[str, Any]:
             strategy=strategy_instance,
             n_aug_trajs=n_aug_trajs,
             points_proportion=points_proportion,
-            seed=seed
+            seed=seed,
         )
 
         # 5. Save Output
@@ -191,6 +195,7 @@ def augment_data_worker(task_args: Tuple) -> Dict[str, Any]:
         return {"success": False, "task": f"Augment {dataset_name}", "error": str(e)}
     finally:
         gc.collect()
+
 
 def extract_aug_features_worker(task_args: Tuple) -> Dict[str, Any]:
     """
@@ -207,15 +212,15 @@ def extract_aug_features_worker(task_args: Tuple) -> Dict[str, Any]:
         folder = os.path.join(AUG_DATA_DIR, dataset_name, str(seed))
 
         # Paths
-        aug_pts_path = os.path.join(folder, f'train_seed_{seed}_pts_augmented_{strategy}{run_suffix}.feather')
-        orig_feats_path = os.path.join(folder, f'train_seed_{seed}_pts_trajectory_features.feather')
+        aug_pts_path = os.path.join(folder, f"train_seed_{seed}_pts_augmented_{strategy}{run_suffix}.feather")
+        orig_feats_path = os.path.join(folder, f"train_seed_{seed}_pts_trajectory_features.feather")
 
         # Load
         aug_df = load_dataframe(aug_pts_path)
         orig_feats_df = load_dataframe(orig_feats_path)
 
         # 1. Filter for New Data (augmented != 0)
-        aug_only_df = aug_df[aug_df['augmented'] != 0].copy()
+        aug_only_df = aug_df[aug_df["augmented"] != 0].copy()
 
         if aug_only_df.empty:
             # If no augmentation happened (e.g. strategy selected 0), just return original
@@ -227,26 +232,25 @@ def extract_aug_features_worker(task_args: Tuple) -> Dict[str, Any]:
             # --- NEW CODE (Bulletproof string concatenation) ---
             # Using .str.cat ensures that if TID was "001", it stays "001_1"
             # and never becomes "1_1" or "1.0_1"
-            aug_only_df['tid'] = aug_only_df['tid'].astype(str).str.cat(
-                aug_only_df['augmented'].astype(str), sep='_'
-            )
+            aug_only_df["tid"] = aug_only_df["tid"].astype(str).str.cat(aug_only_df["augmented"].astype(str), sep="_")
 
             # Clean up columns not needed for extraction
-            aug_only_df = aug_only_df.drop(columns=['augmented'])
+            aug_only_df = aug_only_df.drop(columns=["augmented"])
 
             # 3. Extract Features on Subset
             new_features_df = extract_trajectory_features(aug_only_df)
 
             # 4. Merge
             # Ensure TIDs are strings for clean concatenation
-            new_features_df['tid'] = new_features_df['tid'].astype(str)
-            orig_feats_df['tid'] = orig_feats_df['tid'].astype(str)
+            new_features_df["tid"] = new_features_df["tid"].astype(str)
+            orig_feats_df["tid"] = orig_feats_df["tid"].astype(str)
 
             combined_df = pd.concat([orig_feats_df, new_features_df], ignore_index=True)
 
         # 5. Save Merged Result
-        output_path = os.path.join(folder,
-                                   f'train_seed_{seed}_pts_trajectory_features_merged_{strategy}{run_suffix}.feather')
+        output_path = os.path.join(
+            folder, f"train_seed_{seed}_pts_trajectory_features_merged_{strategy}{run_suffix}.feather"
+        )
         save_dataframe(combined_df, output_path)
 
         return {"success": True, "task": f"ExtractAug {dataset_name} {strategy}"}

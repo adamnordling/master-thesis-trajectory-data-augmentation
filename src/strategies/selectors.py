@@ -1,12 +1,13 @@
 import logging
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from sklearn.cluster import KMeans, MiniBatchKMeans
-from typing import List, Dict, Optional, Any
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import make_pipeline
 from scipy.stats import entropy
+from sklearn.cluster import KMeans, MiniBatchKMeans
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 # Internal imports from our new core structure
 from src.core.outliers import detect_outliers_dbos, find_average_distance
@@ -23,13 +24,12 @@ class RandomTrajectorySelection(TrajectorySelectionMethod):
 
     def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
         super().__init__(proportion, seed)
-        # Random selection doesn't use extra params, but we accept the arg for consistency
         self.params = params or {}
 
     def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
-        unique_tids = trajectory_feats_df['tid'].unique()
-        unique_labels = trajectory_feats_df['label'].unique()
-        selected_tids = []
+        unique_tids = trajectory_feats_df["tid"].unique()
+        unique_labels = trajectory_feats_df["label"].unique()
+        selected_tids: List[str] = []
 
         rng = np.random.default_rng(self.seed)
 
@@ -37,7 +37,7 @@ class RandomTrajectorySelection(TrajectorySelectionMethod):
         total_trajectories = len(unique_tids)
 
         for label in unique_labels:
-            label_tids = trajectory_feats_df[trajectory_feats_df['label'] == label]['tid'].unique()
+            label_tids = trajectory_feats_df[trajectory_feats_df["label"] == label]["tid"].unique()
 
             if len(label_tids) == 0:
                 continue
@@ -48,8 +48,9 @@ class RandomTrajectorySelection(TrajectorySelectionMethod):
             num_to_select = min(num_to_select, len(label_tids))
 
             if num_to_select > 0:
-                selected = rng.choice(label_tids, num_to_select, replace=False)
-                selected_tids.extend(selected)
+                # Use to_numpy() to ensure standard array support for rng.choice
+                selected = rng.choice(np.asarray(label_tids), num_to_select, replace=False)
+                selected_tids.extend(selected.astype(str))
 
         logger.info(f"Random Strategy selected {len(selected_tids)} trajectories.")
         return selected_tids
@@ -67,33 +68,33 @@ class SelectTrajectoryBasedOnOutlierness(TrajectorySelectionMethod):
     def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
         super().__init__(proportion, seed)
         self.params = params or {}
-        # Load defaults from config or fallback to hardcoded
-        self.default_radius = self.params.get('default_radius', 1.0)
+        self.default_radius = self.params.get("default_radius", 1.0)
 
     def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
-        # Handle index vs column for 'tid'
-        df = trajectory_feats_df.reset_index() if 'tid' not in trajectory_feats_df.columns else trajectory_feats_df.copy()
+        df = (
+            trajectory_feats_df.reset_index()
+            if "tid" not in trajectory_feats_df.columns
+            else trajectory_feats_df.copy()
+        )
 
-        unique_tids = df['tid'].unique()
-        unique_labels = [l for l in df['label'].unique() if pd.notna(l)]
-        selected_tids = []
+        unique_tids = df["tid"].unique()
+        unique_labels = [l for l in df["label"].unique() if pd.notna(l)]
+        selected_tids: List[str] = []
 
         total_to_select = int(len(unique_tids) * self.proportion)
         num_per_label = max(1, total_to_select // len(unique_labels)) if unique_labels else 0
 
         for label in unique_labels:
-            label_df = df[df['label'] == label].copy()
-            if label_df.empty: continue
+            label_df = df[df["label"] == label].copy()
+            if label_df.empty:
+                continue
 
-            tids = label_df['tid'].values
-            # Drop non-feature columns
-            feature_cols = [c for c in label_df.columns if c not in ['tid', 'label', 'time']]
-            features = label_df[feature_cols].values
+            tids = label_df["tid"].to_numpy(dtype=str)
+            feature_cols = [c for c in label_df.columns if c not in ["tid", "label", "time"]]
+            features = label_df[feature_cols].to_numpy(dtype=float)
 
-            # Handle NaNs/Infs
             features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
-            # Check for variance
             if features.std() < 1e-9:
                 logger.warning(f"Label {label} has zero variance. Falling back to random selection.")
                 rng = np.random.default_rng(self.seed)
@@ -102,26 +103,19 @@ class SelectTrajectoryBasedOnOutlierness(TrajectorySelectionMethod):
                     selected_tids.extend(rng.choice(tids, cnt, replace=False))
                 continue
 
-            # 1. Calculate Average Distance
-            avg_dist = find_average_distance(features)
+            avg_dist = find_average_distance(features, seed=self.seed)
 
-            # Use configured default if calculation fails
             if avg_dist <= 0:
-                logger.debug(f"Average distance calculation failed/zero. Using default_radius={self.default_radius}")
                 avg_dist = self.default_radius
 
-            # 2. Run DBOS (Outlier Detection)
             try:
                 results = detect_outliers_dbos(features, d=avg_dist)
-                scores = results['scores'].flatten()
-
-                # Sort by score descending (Most outlier-ish first)
+                scores = results["scores"].flatten()
                 sorted_indices = np.argsort(scores)[::-1]
 
-                # Select top N
                 cnt = min(num_per_label, len(tids))
                 top_indices = sorted_indices[:cnt]
-                selected_tids.extend(tids[top_indices])
+                selected_tids.extend(tids[top_indices].tolist())
 
             except Exception as e:
                 logger.error(f"DBOS failed for label {label}: {e}. Skipping.")
@@ -134,76 +128,71 @@ class SelectTrajectoryBasedOnOutlierness(TrajectorySelectionMethod):
 class SelectTrajectoryBasedOnDiversityMaximization(TrajectorySelectionMethod):
     """
     Selects diverse trajectories using K-Means clustering.
-
-    YAML Configuration Usage:
-        diversity:
-            k_clusters: 5
-            batch_size: 256
     """
 
     def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
         super().__init__(proportion, seed)
         self.params = params or {}
-        # Load settings from YAML config (or defaults)
-        self.k_clusters = self.params.get('k_clusters', 5)
-        self.batch_size = self.params.get('batch_size', 256)
+        self.k_clusters = self.params.get("k_clusters", 5)
+        self.batch_size = self.params.get("batch_size", 256)
 
     def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
-        df = trajectory_feats_df.reset_index() if 'tid' not in trajectory_feats_df.columns else trajectory_feats_df.copy()
+        df = (
+            trajectory_feats_df.reset_index()
+            if "tid" not in trajectory_feats_df.columns
+            else trajectory_feats_df.copy()
+        )
 
-        unique_tids = df['tid'].unique()
-        unique_labels = [l for l in df['label'].unique() if pd.notna(l)]
-        selected_tids = []
+        unique_tids = df["tid"].unique()
+        unique_labels = [l for l in df["label"].unique() if pd.notna(l)]
+        selected_tids: List[str] = []
 
         total_to_select = max(1, int(len(unique_tids) * self.proportion))
         num_per_label = max(1, total_to_select // len(unique_labels)) if unique_labels else 0
 
         for label in unique_labels:
-            label_df = df[df['label'] == label]
-            if len(label_df) < 2: continue
+            label_df = df[df["label"] == label]
+            if len(label_df) < 2:
+                continue
 
-            tids = label_df['tid'].values
-            feature_cols = [c for c in label_df.columns if c not in ['tid', 'label', 'time']]
-            features = label_df[feature_cols].fillna(0).values
+            tids = label_df["tid"].to_numpy(dtype=str)
+            feature_cols = [c for c in label_df.columns if c not in ["tid", "label", "time"]]
+            features = label_df[feature_cols].fillna(0).to_numpy(dtype=float)
 
             effective_k = min(self.k_clusters, len(features))
 
             if effective_k < 2:
-                # Not enough data for clustering
-                selected_tids.extend(tids[:min(num_per_label, len(tids))])
+                selected_tids.extend(tids[: min(num_per_label, len(tids))].tolist())
                 continue
 
-            # Use MiniBatchKMeans for large datasets
             if len(features) > 1000:
                 kmeans = MiniBatchKMeans(
                     n_clusters=effective_k,
                     random_state=self.seed,
-                    batch_size=self.batch_size
+                    batch_size=self.batch_size,
                 )
             else:
-                kmeans = KMeans(
-                    n_clusters=effective_k,
-                    random_state=self.seed,
-                    n_init=10
-                )
+                kmeans = KMeans(n_clusters=effective_k, random_state=self.seed, n_init=10)
 
             try:
                 clusters = kmeans.fit_predict(features)
-                cluster_df = pd.DataFrame({'tid': tids, 'cluster': clusters})
+                cluster_df = pd.DataFrame({"tid": tids, "cluster": clusters})
 
-                # Stratified selection from clusters
                 for c_id in range(effective_k):
-                    c_samples = cluster_df[cluster_df['cluster'] == c_id]
-                    if c_samples.empty: continue
+                    c_samples = cluster_df[cluster_df["cluster"] == c_id]
+                    if c_samples.empty:
+                        continue
 
-                    # Allocate based on cluster size
                     c_prop = len(c_samples) / len(cluster_df)
                     c_select = max(1, int(num_per_label * c_prop))
 
-                    # Random select within cluster
                     rng = np.random.default_rng(self.seed + c_id)
-                    chosen = rng.choice(c_samples['tid'].values, min(c_select, len(c_samples)), replace=False)
-                    selected_tids.extend(chosen)
+                    chosen = rng.choice(
+                        c_samples["tid"].to_numpy(dtype=str),
+                        min(c_select, len(c_samples)),
+                        replace=False,
+                    )
+                    selected_tids.extend(chosen.tolist())
 
             except Exception as e:
                 logger.error(f"Clustering failed for label {label}: {e}")
@@ -216,7 +205,6 @@ class SelectTrajectoryBasedOnDiversityMaximization(TrajectorySelectionMethod):
 class SelectTrajectoryBasedOnRepresentativeness(TrajectorySelectionMethod):
     """
     Selects most representative (central) trajectories using Z-scores.
-    Parameters: None specific currently.
     """
 
     def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
@@ -224,43 +212,44 @@ class SelectTrajectoryBasedOnRepresentativeness(TrajectorySelectionMethod):
         self.params = params or {}
 
     def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
-        df = trajectory_feats_df.reset_index() if 'tid' not in trajectory_feats_df.columns else trajectory_feats_df.copy()
+        df = (
+            trajectory_feats_df.reset_index()
+            if "tid" not in trajectory_feats_df.columns
+            else trajectory_feats_df.copy()
+        )
 
-        unique_tids = df['tid'].unique()
-        unique_labels = [l for l in df['label'].unique() if pd.notna(l)]
-        selected_tids = []
+        unique_tids = df["tid"].unique()
+        unique_labels = [l for l in df["label"].unique() if pd.notna(l)]
+        selected_tids: List[str] = []
 
         total_to_select = int(len(unique_tids) * self.proportion)
-        total_rows = len(df[df['label'].isin(unique_labels)])
+        total_rows = len(df[df["label"].isin(unique_labels)])
 
         for label in unique_labels:
-            label_df = df[df['label'] == label]
-            if label_df.empty: continue
+            label_df = df[df["label"] == label]
+            if label_df.empty:
+                continue
 
-            # Proportional allocation
             num_to_select = int(total_to_select * (len(label_df) / total_rows))
             num_to_select = min(num_to_select, len(label_df))
-            if num_to_select == 0: continue
+            if num_to_select == 0:
+                continue
 
-            tids = label_df['tid'].values
-            feature_cols = [c for c in label_df.columns if c not in ['tid', 'label', 'time']]
+            tids = label_df["tid"].to_numpy(dtype=str)
+            feature_cols = [c for c in label_df.columns if c not in ["tid", "label", "time"]]
             features = label_df[feature_cols].fillna(0).replace([np.inf, -np.inf], 0)
 
-            # Vectorized Z-Score Calculation
             mean_vals = features.mean(axis=0)
             std_vals = features.std(axis=0)
-            std_vals[std_vals < 1e-9] = 1.0  # Avoid div/0
+            std_vals[std_vals < 1e-9] = 1.0
 
             z_scores = (features - mean_vals) / std_vals
+            rep_scores = z_scores.abs().sum(axis=1).to_numpy()
 
-            # Representativeness = Sum of Absolute Z-Scores (Lower is more representative/central)
-            rep_scores = z_scores.abs().sum(axis=1).values
-
-            # Sort Ascending (Lowest Z-score sum = Closest to mean)
             sorted_indices = np.argsort(rep_scores)
             top_indices = sorted_indices[:num_to_select]
 
-            selected_tids.extend(tids[top_indices])
+            selected_tids.extend(tids[top_indices].tolist())
 
         logger.info(f"Representativeness Strategy selected {len(selected_tids)} trajectories.")
         return selected_tids
@@ -268,63 +257,46 @@ class SelectTrajectoryBasedOnRepresentativeness(TrajectorySelectionMethod):
 
 class SelectTrajectoryBasedOnUncertainty(TrajectorySelectionMethod):
     """
-    Selects trajectories where a model is most uncertain. This is a form of
-    Active Learning, where we augment the data the model finds most confusing.
-
-    This implementation uses a simple, fast 'scout' model to estimate uncertainty.
-    Uncertainty is quantified by the entropy of the predicted class probabilities.
+    Selects trajectories where a model is most uncertain (Active Learning).
     """
 
     def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
         super().__init__(proportion, seed)
         self.params = params or {}
-        # We use a simple, fast, and probabilistic model as our "scout"
-        # The pipeline ensures the model can handle multiclass classification
         self.scout_model = make_pipeline(
             StandardScaler(),
-            LogisticRegression(random_state=self.seed, solver='lbfgs', multi_class='auto', max_iter=1000)
+            LogisticRegression(random_state=self.seed, solver="lbfgs", max_iter=1000),
         )
 
     def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
-        df = trajectory_feats_df.reset_index() if 'tid' not in trajectory_feats_df.columns else trajectory_feats_df.copy()
+        df = (
+            trajectory_feats_df.reset_index()
+            if "tid" not in trajectory_feats_df.columns
+            else trajectory_feats_df.copy()
+        )
 
-        feature_cols = [c for c in df.columns if c not in ['tid', 'label', 'time']]
-        features = df[feature_cols].fillna(0).replace([np.inf, -np.inf], 0).values
-        labels = df['label'].values
-        tids = df['tid'].values
+        feature_cols = [c for c in df.columns if c not in ["tid", "label", "time"]]
+        features = df[feature_cols].fillna(0).replace([np.inf, -np.inf], 0).to_numpy(dtype=float)
+        labels = df["label"].to_numpy()
+        tids = df["tid"].to_numpy(dtype=str)
 
         if len(np.unique(labels)) < 2:
             logger.warning("Uncertainty selection requires at least 2 classes. Skipping.")
             return []
 
-        logger.info("Uncertainty Strategy: Training scout model to find confusing trajectories...")
-        # 1. Train the scout model on the entire training set
+        logger.info("Uncertainty Strategy: Training scout model...")
         self.scout_model.fit(features, labels)
 
-        # 2. Predict probabilities for each trajectory
         predicted_probabilities = self.scout_model.predict_proba(features)
-
-        # 3. Calculate entropy for each prediction. High entropy = high uncertainty.
         uncertainty_scores = entropy(predicted_probabilities.T)
 
-        # Create a DataFrame to manage scores and TIDs
-        scores_df = pd.DataFrame({
-            'tid': tids,
-            'label': labels,
-            'uncertainty': uncertainty_scores
-        })
+        scores_df = pd.DataFrame({"tid": tids, "label": labels, "uncertainty": uncertainty_scores})
 
-        # 4. Perform stratified selection based on the highest uncertainty
-        selected_tids = []
-        # Group by label and select the top N most uncertain trajectories from each group
-        for label, group in scores_df.groupby('label'):
-            group = group.sort_values(by='uncertainty', ascending=False)
-
-            # Calculate how many to select for this label
-            num_to_select = int(len(group) * self.proportion)
-            num_to_select = max(1, num_to_select)  # Select at least one if proportion is > 0
-
-            selected_tids.extend(group.head(num_to_select)['tid'].tolist())
+        selected_tids: List[str] = []
+        for _, group in scores_df.groupby("label"):
+            group = group.sort_values(by="uncertainty", ascending=False)
+            num_to_select = max(1, int(len(group) * self.proportion))
+            selected_tids.extend(group.head(num_to_select)["tid"].tolist())
 
         logger.info(f"Uncertainty Strategy selected {len(selected_tids)} trajectories.")
         return selected_tids

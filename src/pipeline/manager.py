@@ -1,20 +1,22 @@
-import os
 import logging
-import pandas as pd
-from typing import List, Dict, Any, Tuple, Optional
+import os
 from multiprocessing import Pool, cpu_count
+from typing import Any, Callable, Dict, List, Optional
+
+import pandas as pd
 from tqdm import tqdm
+
+from src.evaluation.analyze import main as run_report_main
+from src.evaluation.models import train_and_evaluate
+from src.evaluation.reporting import create_final_summary_reports
 
 # --- Internal Imports ---
 from src.pipeline.workers import (
-    prepare_dataset_worker,
-    extract_features_worker,
     augment_data_worker,
-    extract_aug_features_worker
+    extract_aug_features_worker,
+    extract_features_worker,
+    prepare_dataset_worker,
 )
-from src.evaluation.models import train_and_evaluate
-from src.evaluation.reporting import create_final_summary_reports
-from src.evaluation.analyze import main as run_report_main
 from src.utils import load_dataframe
 
 # Initialize Logger
@@ -36,38 +38,40 @@ class PipelineManager:
         self.config = config
 
         # 1. Settings
-        self.seeds = config['seeds']
-        self.model_config = config.get('model_config', {})
-        self.use_parallel = config['processing']['parallel']
-        self.cpu_limit = config['processing']['cpu_usage_limit']
+        self.seeds: List[int] = config["seeds"]
+        self.model_config: Dict[str, Any] = config.get("model_config", {})
+        self.use_parallel: bool = config["processing"]["parallel"]
+        self.cpu_limit: float = config["processing"]["cpu_usage_limit"]
 
         # 2. Base Paths
-        root = config['paths']['project_root']
-        self.raw_dir = os.path.join(root, config['paths']['raw_data'])
-        self.aug_dir = os.path.join(root, config['paths']['aug_data'])
-        self.output_root = os.path.join(root, config['paths']['results'])
+        root = config["paths"]["project_root"]
+        self.raw_dir = os.path.join(root, config["paths"]["raw_data"])
+        self.aug_dir = os.path.join(root, config["paths"]["aug_data"])
+        self.output_root = os.path.join(root, config["paths"]["results"])
 
         # 3. Define Professional Output Structure
-        # This structure organizes results by lifecycle stage
         self.dirs = {
-            "states": os.path.join(self.output_root, "model_states"),  # Best params cache
-            "opt_history": os.path.join(self.output_root, "optimization", "history"),  # Combined runs (for Optuna)
-            "opt_details": os.path.join(self.output_root, "optimization", "details"),  # Per-dataset raw CSVs
-            "analysis": os.path.join(self.output_root, "analysis")  # Final reports & images
+            "states": os.path.join(self.output_root, "model_states"),
+            "opt_history": os.path.join(self.output_root, "optimization", "history"),
+            "opt_details": os.path.join(self.output_root, "optimization", "details"),
+            "analysis": os.path.join(self.output_root, "analysis"),
         }
 
     def _get_max_workers(self) -> int:
         """Calculates safe number of worker processes based on config."""
         try:
             import psutil
+
             physical_cores = psutil.cpu_count(logical=False)
+            if physical_cores is None:
+                physical_cores = cpu_count()
         except (ImportError, AttributeError):
             physical_cores = cpu_count()
         return max(1, int(physical_cores * self.cpu_limit))
 
-    def _discover_raw_datasets(self) -> Dict[str, Dict]:
+    def _discover_raw_datasets(self) -> Dict[str, Dict[str, str]]:
         """Scans the data/raw directory for CSV files."""
-        datasets = {}
+        datasets: Dict[str, Dict[str, str]] = {}
         if not os.path.exists(self.raw_dir):
             logger.error(f"Raw data directory not found: {self.raw_dir}")
             return datasets
@@ -75,10 +79,10 @@ class PipelineManager:
         for filename in os.listdir(self.raw_dir):
             if filename.endswith(".csv"):
                 dataset_name = os.path.splitext(filename)[0]
-                datasets[dataset_name] = {'name': dataset_name, 'csv_file': filename}
+                datasets[dataset_name] = {"name": dataset_name, "csv_file": filename}
         return datasets
 
-    def _run_tasks(self, worker_func, tasks: List[Tuple], desc: str):
+    def _run_tasks(self, worker_func: Callable, tasks: List[Any], desc: str) -> None:
         """
         Generic driver for parallel execution.
         """
@@ -86,6 +90,7 @@ class PipelineManager:
             logger.info(f"No tasks to run for: {desc}")
             return
 
+        results: List[Dict[str, Any]] = []
         if self.use_parallel and len(tasks) > 1:
             n_workers = self._get_max_workers()
             n_workers = min(n_workers, len(tasks))
@@ -93,26 +98,21 @@ class PipelineManager:
             logger.info(f"Running '{desc}' with {len(tasks)} tasks on {n_workers} cores...")
 
             with Pool(processes=n_workers) as pool:
-                results = list(tqdm(
-                    pool.imap_unordered(worker_func, tasks),
-                    total=len(tasks),
-                    desc=desc
-                ))
+                results = list(tqdm(pool.imap_unordered(worker_func, tasks), total=len(tasks), desc=desc))
         else:
             logger.info(f"Running '{desc}' sequentially...")
             results = [worker_func(t) for t in tqdm(tasks, desc=desc)]
 
         # --- IMPROVED ERROR REPORTING ---
-        errors = [res for res in results if not res.get('success', False)]
+        errors = [res for res in results if not res.get("success", False)]
         if errors:
             logger.error(f"!!! Encountered {len(errors)} errors during '{desc}' !!!")
             for i, e in enumerate(errors):
-                # This will print the actual crash reason to the log file and console
                 logger.error(f"  [Error {i + 1}] Task: {e.get('task')} -> Message: {e.get('error')}")
 
     # ================= PIPELINE STEPS =================
 
-    def run_preparation(self, datasets: List[str]):
+    def run_preparation(self, datasets: List[str]) -> None:
         """
         Step 1: Data Preparation.
         Raw CSV -> Stratified Split Feather files in data/augmented/{dataset}/{seed}/
@@ -126,46 +126,42 @@ class PipelineManager:
                 continue
 
             for seed in self.seeds:
-                # Check for feather file existence to skip work
                 target_file = os.path.join(self.aug_dir, name, str(seed), f"train_seed_{seed}_pts.feather")
                 if not os.path.exists(target_file):
                     tasks.append((seed, name, available_raw[name]))
 
         self._run_tasks(prepare_dataset_worker, tasks, "Preparing Datasets")
 
-    def run_feature_extraction(self, datasets: List[str]):
+    def run_feature_extraction(self, datasets: List[str]) -> None:
         """
         Step 2: Base Feature Extraction.
         Calculates features for the standard Train and Test sets.
         """
-        tasks = []
+        tasks: List[str] = []
         for name in datasets:
             for seed in self.seeds:
                 seed_dir = os.path.join(self.aug_dir, name, str(seed))
-                if not os.path.exists(seed_dir): continue
+                if not os.path.exists(seed_dir):
+                    continue
 
                 for split in ["train", "test"]:
-                    # Input (Feather)
                     pts_file = os.path.join(seed_dir, f"{split}_seed_{seed}_pts.feather")
-
-                    # Output (Feather)
                     target_file = os.path.join(seed_dir, f"{split}_seed_{seed}_pts_trajectory_features.feather")
 
-                    # Add task if input exists and output doesn't
                     if os.path.exists(pts_file) and not os.path.exists(target_file):
                         tasks.append(pts_file)
 
         self._run_tasks(extract_features_worker, tasks, "Extracting Raw Features")
 
     def run_augmentation(
-            self,
-            datasets: List[str],
-            strategies: List[str],
-            proportion: float,
-            n_aug_trajs: int,
-            points_proportion: float,
-            run_suffix: str = ""
-    ):
+        self,
+        datasets: List[str],
+        strategies: List[str],
+        proportion: float,
+        n_aug_trajs: int,
+        points_proportion: float,
+        run_suffix: str = "",
+    ) -> None:
         """
         Step 3: Augmentation.
         Generates new trajectories based on the selected strategies.
@@ -174,26 +170,19 @@ class PipelineManager:
         for name in datasets:
             for seed in self.seeds:
                 for strategy in strategies:
-                    # Check for output feather file
                     target_file = os.path.join(
-                        self.aug_dir, name, str(seed),
-                        f"train_seed_{seed}_pts_augmented_{strategy}{run_suffix}.feather"
+                        self.aug_dir,
+                        name,
+                        str(seed),
+                        f"train_seed_{seed}_pts_augmented_{strategy}{run_suffix}.feather",
                     )
 
                     if not os.path.exists(target_file):
-                        tasks.append((
-                            seed, strategy, proportion, n_aug_trajs,
-                            points_proportion, name, run_suffix
-                        ))
+                        tasks.append((seed, strategy, proportion, n_aug_trajs, points_proportion, name, run_suffix))
 
         self._run_tasks(augment_data_worker, tasks, f"Augmenting Data {run_suffix}")
 
-    def run_aug_feature_extraction(
-            self,
-            datasets: List[str],
-            strategies: List[str],
-            run_suffix: str = ""
-    ):
+    def run_aug_feature_extraction(self, datasets: List[str], strategies: List[str], run_suffix: str = "") -> None:
         """
         Step 4: Augmented Feature Extraction.
         Calculates features for the new data and merges with original features.
@@ -202,16 +191,17 @@ class PipelineManager:
         for name in datasets:
             for seed in self.seeds:
                 for strategy in strategies:
-                    # Input (Augmented Points Feather)
                     aug_file = os.path.join(
-                        self.aug_dir, name, str(seed),
-                        f'train_seed_{seed}_pts_augmented_{strategy}{run_suffix}.feather'
+                        self.aug_dir,
+                        name,
+                        str(seed),
+                        f"train_seed_{seed}_pts_augmented_{strategy}{run_suffix}.feather",
                     )
-
-                    # Output (Merged Features Feather)
                     target_file = os.path.join(
-                        self.aug_dir, name, str(seed),
-                        f"train_seed_{seed}_pts_trajectory_features_merged_{strategy}{run_suffix}.feather"
+                        self.aug_dir,
+                        name,
+                        str(seed),
+                        f"train_seed_{seed}_pts_trajectory_features_merged_{strategy}{run_suffix}.feather",
                     )
 
                     if os.path.exists(aug_file) and not os.path.exists(target_file):
@@ -219,62 +209,47 @@ class PipelineManager:
 
         self._run_tasks(extract_aug_features_worker, tasks, f"Extracting Aug Features {run_suffix}")
 
-    def run_evaluation(
-            self,
-            datasets: List[str],
-            strategies: List[str],
-            run_suffix: str = ""
-    ) -> Optional[str]:
+    def run_evaluation(self, datasets: List[str], strategies: List[str], run_suffix: str = "") -> Optional[str]:
         """
         Step 5: Training and Evaluation.
-
-        This method uses the NEW folder structure:
-        - Cache -> data/output/model_states/
-        - Details -> data/output/optimization/details/{dataset}/
-        - Combined -> data/output/optimization/history/
         """
-        all_results_dfs = []
+        all_results_dfs: List[pd.DataFrame] = []
 
-        # Ensure output directories exist
-        os.makedirs(self.dirs['states'], exist_ok=True)
-        os.makedirs(self.dirs['opt_history'], exist_ok=True)
-        os.makedirs(self.dirs['opt_details'], exist_ok=True)
+        os.makedirs(self.dirs["states"], exist_ok=True)
+        os.makedirs(self.dirs["opt_history"], exist_ok=True)
+        os.makedirs(self.dirs["opt_details"], exist_ok=True)
 
         safe_jobs = self._get_max_workers()
 
         for dataset in datasets:
             logger.info(f"Starting evaluation for dataset: {dataset}")
-
-            # 1. Setup paths for this specific dataset
             dataset_dir = os.path.join(self.aug_dir, dataset)
-
-            # Detailed results go into optimization/details/{dataset}/
-            details_dir = os.path.join(self.dirs['opt_details'], dataset)
+            details_dir = os.path.join(self.dirs["opt_details"], dataset)
             os.makedirs(details_dir, exist_ok=True)
-            output_csv = os.path.join(details_dir, f'{dataset}{run_suffix}.csv')
+            output_csv = os.path.join(details_dir, f"{dataset}{run_suffix}.csv")
 
-            # Best Parameters Cache (Model States)
-            params_cache_path = os.path.join(self.dirs['states'], f'{dataset}_best_params.csv')
+            params_cache_path = os.path.join(self.dirs["states"], f"{dataset}_best_params.csv")
 
             if os.path.exists(params_cache_path):
                 cached_params = pd.read_csv(params_cache_path)
             else:
-                cached_params = pd.DataFrame(columns=['feature_type', 'seed', 'model', 'best_params'])
+                cached_params = pd.DataFrame(columns=["feature_type", "seed", "model", "best_params"])
 
-            dataset_results = []
-            new_params_list = []
+            dataset_results: List[Dict[str, Any]] = []
+            new_params_list: List[Dict[str, Any]] = []
 
-            feature_types = ['trajectory_features'] + [f'trajectory_features_merged_{s}{run_suffix}' for s in
-                                                       strategies]
+            feature_types = ["trajectory_features"] + [
+                f"trajectory_features_merged_{s}{run_suffix}" for s in strategies
+            ]
 
-            # 2. Iterate Seeds (Sequential Execution)
             for seed in tqdm(self.seeds, desc=f"Evaluating {dataset}"):
                 seed_path = os.path.join(dataset_dir, str(seed))
-                if not os.path.exists(seed_path): continue
+                if not os.path.exists(seed_path):
+                    continue
 
-                # Load Test Data (Feather)
-                test_file = os.path.join(seed_path, f'test_seed_{seed}_pts_trajectory_features.feather')
-                if not os.path.exists(test_file): continue
+                test_file = os.path.join(seed_path, f"test_seed_{seed}_pts_trajectory_features.feather")
+                if not os.path.exists(test_file):
+                    continue
 
                 try:
                     test_df = load_dataframe(test_file)
@@ -283,14 +258,12 @@ class PipelineManager:
                     continue
 
                 for f_name in feature_types:
-                    # Load Train Data (Feather)
-                    train_file = os.path.join(seed_path, f'train_seed_{seed}_pts_{f_name}.feather')
-                    if not os.path.exists(train_file): continue
+                    train_file = os.path.join(seed_path, f"train_seed_{seed}_pts_{f_name}.feather")
+                    if not os.path.exists(train_file):
+                        continue
 
                     try:
                         train_df = load_dataframe(train_file)
-
-                        # Train & Eval
                         results, new_params = train_and_evaluate(
                             train_df=train_df,
                             test_df=test_df,
@@ -298,11 +271,11 @@ class PipelineManager:
                             feature_type_name=f_name,
                             cached_params=cached_params,
                             model_config=self.model_config,
-                            n_jobs_gridsearch = safe_jobs
+                            n_jobs_gridsearch=safe_jobs,
                         )
 
                         for r in results:
-                            r['dataset'] = dataset
+                            r["dataset"] = dataset
 
                         dataset_results.extend(results)
                         new_params_list.extend(new_params)
@@ -311,41 +284,33 @@ class PipelineManager:
                         logger.error(f"Error evaluating {f_name} seed {seed}: {e}")
                         continue
 
-            # 3. Update Cache (Model States)
             if new_params_list:
                 new_params_df = pd.DataFrame(new_params_list)
                 updated_cache = pd.concat([cached_params, new_params_df], ignore_index=True)
-                updated_cache.drop_duplicates(subset=['feature_type', 'seed', 'model'], keep='last', inplace=True)
+                updated_cache.drop_duplicates(subset=["feature_type", "seed", "model"], keep="last", inplace=True)
                 updated_cache.to_csv(params_cache_path, index=False)
 
-            # 4. Save Granular Results
             if dataset_results:
                 res_df = pd.DataFrame(dataset_results)
                 res_df.to_csv(output_csv, index=False)
                 all_results_dfs.append(res_df)
 
-        # 5. Create Combined History File (Combined results for Optuna)
         if all_results_dfs:
             combined_df = pd.concat(all_results_dfs, ignore_index=True)
-
             dataset_prefix = "-".join(sorted(datasets))
-            # Save to optimization/history/
-            combined_path = os.path.join(self.dirs['opt_history'], f'{dataset_prefix}{run_suffix}.csv')
+            combined_path = os.path.join(self.dirs["opt_history"], f"{dataset_prefix}{run_suffix}.csv")
             combined_df.to_csv(combined_path, index=False)
             return combined_path
 
         return None
 
-    def generate_reports(self, datasets: List[str]):
+    def generate_reports(self, datasets: List[str]) -> None:
         """Step 6: Generate final reports."""
-        # Pass the output root directory; reporting module handles the specific 'analysis' subfolders
         create_final_summary_reports(self.output_root, datasets)
 
-    def run_final_analysis(self, datasets: List[str]):
+    def run_final_analysis(self, datasets: List[str]) -> None:
         """
         Step 7: Runs the final, consolidated analysis and reporting script.
-        This finds the best hyperparameters for each strategy and performs
-        a statistically fair comparison against the baseline.
         """
         logger.info("Starting final report generation and statistical analysis...")
         for dataset in datasets:

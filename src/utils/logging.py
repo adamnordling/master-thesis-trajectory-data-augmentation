@@ -1,6 +1,6 @@
 import logging
-import sys
 import os
+import sys
 from logging.handlers import RotatingFileHandler
 
 
@@ -19,13 +19,9 @@ def setup_logging(log_dir: str = "logs", log_name: str = "pipeline.log", level=l
 
     # 2. Define Formatters
     # File gets detailed info: Time, Module, Level, Message
-    file_formatter = logging.Formatter(
-        '%(asctime)s - [%(name)s] - %(levelname)s - %(message)s'
-    )
+    file_formatter = logging.Formatter("%(asctime)s - [%(name)s] - %(levelname)s - %(message)s")
     # Console gets simple info: Level, Message
-    console_formatter = logging.Formatter(
-        '%(levelname)s: %(message)s'
-    )
+    console_formatter = logging.Formatter("%(levelname)s: %(message)s")
 
     # 3. Get Root Logger
     root_logger = logging.getLogger()

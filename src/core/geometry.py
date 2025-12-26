@@ -1,18 +1,16 @@
 import logging
+from typing import Any, Dict, List, Tuple
+
 import numpy as np
 import pandas as pd
 from pyproj import Geod
-from typing import Tuple, List, Dict, Any
 
 # Initialize a logger for this specific module
 logger = logging.getLogger(__name__)
 
 
 def _generate_random_points_on_circle_border(
-        lats: np.ndarray,
-        lons: np.ndarray,
-        radii: np.ndarray,
-        seed: int
+    lats: np.ndarray, lons: np.ndarray, radii: np.ndarray, seed: int
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Generate random points on the border of a circle using robust geodesic calculations.
@@ -84,10 +82,7 @@ def _generate_new_geo_points(coords: np.ndarray, seed: int) -> Tuple[np.ndarray,
 
 
 def shift_points_randomly(
-        trajectory_df: pd.DataFrame,
-        n_aug_trajs: int,
-        points_proportion: float,
-        seed: int
+    trajectory_df: pd.DataFrame, n_aug_trajs: int, points_proportion: float, seed: int
 ) -> pd.DataFrame:
     """
     Augments trajectories by modifying a proportion of their interior points.
@@ -105,19 +100,19 @@ def shift_points_randomly(
         A new DataFrame containing BOTH original and augmented trajectories.
     """
     all_records: List[Dict[str, Any]] = []
-    unique_tids = trajectory_df['tid'].unique()
+    unique_tids = trajectory_df["tid"].unique()
 
     logger.info(f"Starting geometric augmentation for {len(unique_tids)} trajectories.")
 
     for i, tid in enumerate(unique_tids):
         # Extract single trajectory
-        traj = trajectory_df[trajectory_df['tid'] == tid].copy()
-        traj = traj.sort_values(by='time').reset_index(drop=True)
+        traj = trajectory_df[trajectory_df["tid"] == tid].copy()
+        traj = traj.sort_values(by="time").reset_index(drop=True)
 
         # 1. Archive Original Trajectory
         for _, row in traj.iterrows():
             record = row.to_dict()
-            record['augmented'] = 0
+            record["augmented"] = 0
             all_records.append(record)
 
         # Skip short trajectories (need at least Start, End, and 1 interior point)
@@ -131,7 +126,6 @@ def shift_points_randomly(
                 tid_numeric = int(hash(str(tid)) % 1_000_000)
                 current_seed = seed + aug + tid_numeric
                 rng = np.random.default_rng(current_seed)
-
 
                 # Identify interior points (excluding start/end)
                 available_indices = traj.index[1:-1]
@@ -147,8 +141,8 @@ def shift_points_randomly(
 
                 # Prepare coordinates for vectorized calculation
                 # P1: Selected points, P2: The immediate next points
-                p1_coords = traj.loc[selected_indices, ['lat', 'lon']].values
-                p2_coords = traj.loc[selected_indices + 1, ['lat', 'lon']].values
+                p1_coords = traj.loc[selected_indices, ["lat", "lon"]].values
+                p2_coords = traj.loc[selected_indices + 1, ["lat", "lon"]].values
 
                 selected_points_coords = np.hstack([p1_coords, p2_coords])
 
@@ -160,13 +154,13 @@ def shift_points_randomly(
 
                 # Construct new trajectory
                 new_traj = traj.copy()
-                new_traj.loc[selected_indices, 'lat'] = new_points[:, 0]
-                new_traj.loc[selected_indices, 'lon'] = new_points[:, 1]
+                new_traj.loc[selected_indices, "lat"] = new_points[:, 0]
+                new_traj.loc[selected_indices, "lon"] = new_points[:, 1]
 
                 # Append to records
                 for _, row in new_traj.iterrows():
                     record = row.to_dict()
-                    record['augmented'] = aug
+                    record["augmented"] = aug
                     all_records.append(record)
 
             except Exception as e:
