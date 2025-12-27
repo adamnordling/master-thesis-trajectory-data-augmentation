@@ -16,6 +16,42 @@ from src.utils.logging import setup_logging
 
 logger = logging.getLogger(__name__)
 
+import shutil
+
+
+def validate_storage_capacity(manager: PipelineManager, datasets: List[str]) -> bool:
+    """
+    Predicts disk usage using a conservative 600x expansion factor
+    to account for small-file overhead and metadata.
+    """
+    logger.info("--- Performing Storage Capacity Audit ---")
+
+    total_projected_gb = 0.0
+    for ds in datasets:
+        raw_path = os.path.join(manager.raw_dir, f"{ds}.csv")
+        if not os.path.exists(raw_path):
+            continue
+
+        raw_size_gb = os.path.getsize(raw_path) / (1024 ** 3)
+
+        # ADJUSTED HEURISTIC:
+        # Car Traffic: 2.5MB -> 1.42GB (approx 560x)
+        # AIS: 500MB -> 165GB (approx 330x)
+        # We use 600x to be safe across all scales.
+        projected_for_this_ds = raw_size_gb * 600
+        total_projected_gb += projected_for_this_ds
+
+    free_gb = shutil.disk_usage(manager.output_root).free / (1024 ** 3)
+
+    logger.info(f"Projected Disk Requirement: {total_projected_gb:.2f} GB")
+    logger.info(f"Available Space on Drive:  {free_gb:.2f} GB")
+
+    if total_projected_gb > free_gb * 0.90:  # Increased safety margin to 10%
+        logger.error("CRITICAL: Storage audit failed! Free up space before running.")
+        return False
+
+    logger.info("Storage audit passed.")
+    return True
 
 def parse_args() -> argparse.Namespace:
     """
@@ -146,6 +182,10 @@ def main() -> None:
     )
 
     try:
+        if not validate_storage_capacity(manager, datasets_to_process):
+            logger.critical("Aborting run due to storage constraints.")
+            sys.exit(1)
+        # ----------------------------------
         logger.info(f"Target Datasets: {datasets_to_process}")
         logger.info(f"Target Strategies: {strategies_to_process}")
 

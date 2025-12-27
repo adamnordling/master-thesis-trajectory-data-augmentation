@@ -28,7 +28,7 @@ def load_dataframe(filepath: str, dtype: Optional[Dict[str, Any]] = None) -> pd.
             # not exposed as a kwarg in the pandas wrapper.
             df = pd.read_feather(filepath)
         elif filepath.endswith(".csv"):
-            df = pd.read_csv(filepath, dtype=default_dtype)
+            df = pd.read_csv(filepath, dtype=default_dtype, engine='pyarrow')
         else:
             raise ValueError(f"Unsupported file format: {filepath}")
 
