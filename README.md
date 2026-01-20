@@ -144,12 +144,13 @@ The full experimental pipeline was run on four distinct datasets. This section p
 - **Physical Cores:** 8
 - **Parallel Workers Used:** 6
 - **RAM:** 32 GB
+- **Storage:** Kingston SFYRS 1000G SSD
 
 | Dataset | Size (Disk) | ⏱️ Total Time | ⚙️ Baseline Tuning | 🔬 Optuna Tuning |
 | :--- | :--- | :--- | :--- | :--- |
-| **AIS Subset** | ~165 GB | **~26.6 hours** | ~2.5 hours | ~24.0 hours |
-| **Starkey** | ~20 GB | **~4.4 hours** | ~32.5 minutes | ~3.8 hours |
-| **Foxes** | ~21 GB | **~1.9 hours** | ~11.3 minutes | ~1.7 hours |
-| **Car Traffic** | ~2.5 GB | **~57 minutes** | ~11.8 minutes | ~44.6 minutes |
+| **AIS Subset** | ~165 GB | **~24.2 hours** | ~2.6 hours | ~21.5 hours |
+| **Starkey** | ~20 GB | **~3.9 hours** | ~36.5 minutes | ~3.3 hours |
+| **Foxes** | ~21 GB | **~2.2 hours** | ~15.1 minutes | ~1.9 hours |
+| **Car Traffic** | ~2.5 GB | **~1.2 hours** | ~17.6 minutes | ~55.8 minutes |
 
 *All runtimes are approximate and represent the total wall-clock time for a full, end-to-end run (20 seeds, 27 Optuna trials per dataset).*
