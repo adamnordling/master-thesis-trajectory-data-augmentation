@@ -4,6 +4,7 @@
 ![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-Thesis_Complete-orange)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19323839.svg)](https://doi.org/10.5281/zenodo.19323839)
 
 A modular, configuration-driven Python system for generating, evaluating, and comparing augmented trajectory datasets to improve classification models. This project implements multiple selection strategies (Random, Outlierness, Diversity, Representativeness, Uncertainty) and optimizes them using **Optuna**.
 
