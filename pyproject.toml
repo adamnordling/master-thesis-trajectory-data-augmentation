@@ -8,7 +8,9 @@ version = "1.0.0"
 description = "Automated pipeline for generating and evaluating augmented trajectory data."
 readme = "README.md"
 requires-python = "~=3.11"
-authors = [{ name = "Adam Nordling"}]
+authors = [
+    { name = "Adam Nordling" }
+]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -17,7 +19,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: GIS",
 ]
 
-dependencies =[
+# 1. MAIN RUNTIME DEPENDENCIES
+dependencies = [
     "numpy>=1.26.0,<2.0.0",
     "optuna>=3.4.0,<4.0.0",
     "pandas>=2.1.0,<3.0.0",
@@ -35,48 +38,59 @@ dependencies =[
     "tqdm>=4.66.0,<5.0.0",
 ]
 
+# 2. DEVELOPMENT DEPENDENCIES
 [project.optional-dependencies]
-dev =[
-    "ruff~=0.3.0",           # Locks Ruff to 0.3.x
-    "mypy~=1.9.0",           # Locks Mypy to 1.9.x
-    "pytest~=8.0.0",         # Locks Pytest
-    "pip-tools~=7.4.0",      # Dependency management
-    "pandas-stubs~=2.1.0",   # Matches the Pandas version
-    "deptry~=0.14.0",        # Dependency checker
-    "jupyter~=1.0.0",        # REQUIRED to open and run your .ipynb notebooks
-    "ipykernel~=6.29.0",     # Connects the notebook to your virtual environment
+dev = [
+    "ruff~=0.3.0",
+    "mypy~=1.9.0",
+    "pytest~=8.0.0",
+    "pip-tools~=7.4.0",
+    "pandas-stubs~=2.1.0",
+    "deptry~=0.14.0",
+    "jupyter~=1.0.0",
+    "ipykernel~=6.29.0",
+    "types-PyYAML>=6.0.0",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# --- RUFF CONFIGURATION (The "Everything" Tool) ---
+# RUFF CONFIGURATION
 [tool.ruff]
 line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-select =["E", "F", "I", "N", "UP", "D", "ANN", "PT"]
-ignore = ["D100", "D104", "ANN101", "ANN102"]
+# Select rules:
+# E/F (Error/Flake8), I (Isort), N (Naming), UP (Upgrade), D (Docstrings), ANN (Annotations), PT (Pytest)
+select = ["E", "F", "I", "N", "UP", "D", "ANN", "PT"]
+
+# IGNORE these specific rules:
+ignore = [
+    "D100", "D104", "ANN101", "ANN102",
+    "N806",    # Allow uppercase X_train (Standard in ML)
+    "N803",    # Allow uppercase X in function arguments
+    "D205",    # Don't force a blank line in docstrings
+    "D200",    # Don't force docstrings to be on one line
+    "ANN401",  # Allow Any type hints
+    "E501",    # Don't error on long lines (we'll let the formatter handle it)
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.ruff.lint.pydocstyle]
-convention = "google" # Professional standard for docstrings
-
-# --- NEW: MYPY CONFIGURATION (Type Checking) ---
+# MYPY CONFIGURATION
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true # Force you to write types for functions
-ignore_missing_imports = true # Stops it from complaining about libraries without types
+disallow_untyped_defs = true
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "src"]
 
-# --- DEPTRY CONFIGURATION ---
+# DEPTRY CONFIGURATION
 [tool.deptry.per_rule_ignores]
-DEP002 =["pyarrow", "ruff", "mypy", "pytest", "pip-tools", "pandas-stubs", "deptry"]
+DEP002 = ["pyarrow", "ruff", "mypy", "pytest", "pip-tools", "pandas-stubs", "deptry", "jupyter", "ipykernel"]

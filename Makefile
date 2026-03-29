@@ -13,7 +13,7 @@ help: ## Show this help message
 # --- Environment & Setup ---
 
 install: ## Create virtual environment and install all dependencies (including dev)
-	python3 -m venv $(VENV_DIR)
+	python3.11 -m venv $(VENV_DIR)
 	$(PIP) install --upgrade pip
 	$(PIP) install -e .[dev]
 	@echo "Installation complete! Run 'make start' to enter the environment."
