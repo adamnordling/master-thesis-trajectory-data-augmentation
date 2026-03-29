@@ -1,6 +1,7 @@
 # Trajectory Data Augmentation
 
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
+![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-Thesis_Complete-orange)
 
@@ -38,39 +39,49 @@ trajectory-augmentation/
 
 ## 🚀 Setup & Installation
 
-### 1. Prerequisite: Get Data & Clone
+### 1. Prerequisite: Get Data & Clone Repository
 ```bash
-    # Clone the repository
-    git clone git@gitlab.lnu.se:an223ym/master-thesis-trajectory-data-augmentation.git
-    cd trajectory-data-augmentation
-  ```
+git clone git@gitlab.lnu.se:an223ym/master-thesis-trajectory-data-augmentation.git
+```
 
 Place your raw trajectory `.csv` files into the `data/raw/` directory.
 The system expects columns: `tid` (Trajectory ID), `lat`, `lon`, `time`, `label`.
 
-To get the datasets I used, use [**this Google Drive link**](https://drive.google.com/drive/folders/16TbxggA4w11NA7CjXRrJO0q5MNJVD0ho?usp=sharing) to download those.
+💾 **Dataset Download**: You can download the exact experimental datasets used in this thesis via [**this Google Drive link**](https://drive.google.com/drive/folders/16TbxggA4w11NA7CjXRrJO0q5MNJVD0ho?usp=sharing).
 
 ### 2. Install Package
-We use `pyproject.toml` for modern dependency management. Installing in "editable" mode (`-e`) ensures the `src` package is available throughout the project.
+This project uses `pyproject.toml` for modern dependency management. You can set it up automatically via the included Makefile (Linux/Mac/WSL) or manually (Windows).
 
+
+**Method A: Automated Setup (Mac / Linux / Windows WSL) - Recommended**
+```bash
+# Automatically creates a virtual environment and installs all dependencies
+make install
+
+# Enter the virtual environment shell
+make start
+```
+**Method B: Manual Setup (Windows Native)**
 ```bash
 # Create virtual environment
-python -m venv .venv
+python -m venv venv
 
 # Activate environment
-# Windows:
-.venv\Scripts\activate
-# Mac/Linux:
-source .venv/bin/activate
+venv\Scripts\activate
 
-# Upgrade pip
-pip install --upgrade pip
-
-# Install the project and dependencies in editable mode
-pip install -e .
+# Upgrade pip and install the project with dev dependencies
+python -m pip install --upgrade pip
 
 # Install the project with dev dependencies (for testing, linting, etc.)
 pip install -e ".[dev]"
+```
+
+## 🛠️ Code Quality & Maintenance
+This project enforces strict coding standards using **Ruff** (formatting/linting) and **Mypy** (static type checking). If you are using the Makefile, you can automatically clean and format the codebase:
+```bash
+make format      # Auto-fixes imports, syntax, and formatting using Ruff
+make lint        # Runs strict type checking (Mypy) and linter rules
+make clean-python # Removes all __pycache__ and temp build files
 ```
 
 ---
@@ -89,50 +100,61 @@ Control the experiment without touching code using the files in `config/`:
 
 The system is controlled via `main.py`. It supports two modes: **Automatic Tuning** (Optuna) and **Manual Execution**.
 
+You can run these via standard Python commands, or by using the `Makefile` shortcuts.
+
 ### 1. Automatic Hyperparameter Tuning (Recommended)
-This runs the full loop: checks cache, optimizes parameters via Optuna, does the full augment and extraction for all datasets in /data/raw/ and generates final reports.
+This runs the full loop: checks cache, optimizes parameters via Optuna, does the full augment and extraction for all datasets in `/data/raw/` and generates final reports.
 
 ```bash
-python main.py
+make run
+# Or manually: python main.py
 ```
 
 ### 2. Manual Pipeline Steps
 You can run specific stages of the pipeline individually for debugging or fine-tuning.
 
-**Prepare Data (Split & Clean):**
+**Run a Specific Dataset only:**
 ```bash
-python main.py --prepare
+make run-dataset DS=foxes
+# Or manually: python main.py --datasets foxes
 ```
 
-**Run Augmentation with Custom Settings:**
+**Generate Reports/Analyze Only::**
+```bash
+make run-analyze
+# Or manually: python main.py --analyze
+```
+
+**Run Augmentation with Custom Settings (Manual mode):**
 ```bash
 python main.py --augment --datasets foxes --strategies diversity --prop 0.4 --n-aug 5
 ```
 
-**Run a Specific Dataset only:**
-```bash
-python main.py --datasets foxes
-```
-
-**Generate Reports/Analyze Only:**
-```bash
-python main.py --datasets foxes --report --analyze
-```
-
 **Quick Test Mode (Runs only 2 seeds):**
 ```bash
-python main.py --datasets foxes --test
+make test-run
+# Or manually: python main.py --test
 ```
 
+### 3. Cleaning Data
+
+The `Makefile` provides granular commands to clean your workspace without deleting everything:
+```bash
+make clean-eval      # Deletes model logs/results, but KEEPS the heavy augmented datasets
+make clean-aug       # Deletes generated augmented data, keeps original raw data
+make clean-dataset DS=foxes  # Wipes all generated data/results for just ONE dataset
+make clean-all       # Wipes everything generated by the pipeline
+```
 ---
 
 ## 📊 Outputs
 
 All artifacts are saved in `data/output/`:
-*   **`augmented/`**: All augmented/merged/extracted .feather files for every seed.
-*   **`output/`**: Output of analysis images, LaTex tables and model states.
-*   **`logs/`**: Execution logs for debugging.
-
+* **`optimization/history/`**: CSV files containing the F1-scores for all Optuna trials and baseline runs.
+* **`model_states/`**: Cached optimal hyperparameters for baseline models.
+* **`analysis/images/`**: Auto-generated performance bar charts, heatmaps, and rankings.
+* **`analysis/reports/`**: Auto-generated LaTeX tables formatted for academic publication containing paired t-test p-values.
+* **`performance/`**: Auto-generated hardware performance audits and step-by-step execution times.
 ---
 
 ## Experimental Datasets & Runtimes
@@ -140,7 +162,7 @@ All artifacts are saved in `data/output/`:
 The full experimental pipeline was run on four distinct datasets. This section provides an overview of their characteristics and the approximate computational cost to reproduce the results on the benchmark system.
 
 **Benchmark System Specifications:**
-- **Processor:** Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz (Values inferred from "Family 6 Model 158 Stepping 12")
+- **Processor:** Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz
 - **Physical Cores:** 8
 - **Parallel Workers Used:** 6
 - **RAM:** 32 GB

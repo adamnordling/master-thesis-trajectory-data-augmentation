@@ -103,14 +103,12 @@ class PipelineManager:
             logger.info(f"Running '{desc}' sequentially...")
             results = [worker_func(t) for t in tqdm(tasks, desc=desc)]
 
-        # --- IMPROVED ERROR REPORTING ---
         errors = [res for res in results if not res.get("success", False)]
         if errors:
             logger.error(f"!!! Encountered {len(errors)} errors during '{desc}' !!!")
             for i, e in enumerate(errors):
                 logger.error(f"  [Error {i + 1}] Task: {e.get('task')} -> Message: {e.get('error')}")
 
-    # ================= PIPELINE STEPS =================
 
     def run_preparation(self, datasets: List[str]) -> None:
         """

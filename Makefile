@@ -1,76 +1,78 @@
-# --- Variables ---
-PYTHON = python
-PIP    = pip
-# If you don't provide F=..., it cleans the entire 'src' directory by default
-F      ?= src
+.PHONY: help install start format lint test-run run run-dataset run-analyze clean-python clean-all clean-aug clean-eval clean-dataset
 
-.PHONY: help install setup tidy clean run-full run-smoke run-debug
+VENV_DIR = venv
+PYTHON = $(VENV_DIR)/bin/python
+PIP = $(VENV_DIR)/bin/pip
 
-help:
-	@echo "================================================================"
-	@echo "      TRAJECTORY AUGMENTATION PIPELINE - DEVELOPER TOOLS"
-	@echo "================================================================"
-	@echo "ENVIRONMENT"
-	@echo "  make start        - Start virtual environment"
-	@echo "  make install       - Install project + dev tools (Ruff, Mypy, etc)"
-	@echo "  make setup         - Full clean install (removes old env first)"
-	@echo ""
-	@echo "CODE QUALITY (THE GOLDEN STANDARD)"
-	@echo "  make tidy          - The 'Super-Clean': Fixes types, linting, & format"
-	@echo "                       Usage: make tidy F=src/core/features.py"
-	@echo "  make clean         - Remove temporary caches and build artifacts"
-	@echo ""
-	@echo "PIPELINE EXECUTION"
-	@echo "  make run-full      - Run the complete Optuna optimization"
-	@echo "  make run-smoke     - Quick parallel test to verify infrastructure"
-	@echo "  make run-debug     - Sequential test with verbose errors"
-	@echo "================================================================"
+help: ## Show this help message
+	@echo "================================================================="
+	@echo "        Trajectory Data Augmentation Pipeline - Commands         "
+	@echo "================================================================="
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-# --- 1. Environment Management ---
+# --- Environment & Setup ---
 
-start:
-	powershell -NoExit -Command ". .venv\Scripts\Activate.ps1"
+install: ## Create virtual environment and install all dependencies (including dev)
+	python3 -m venv $(VENV_DIR)
+	$(PIP) install --upgrade pip
+	$(PIP) install -e .[dev]
+	@echo "Installation complete! Run 'make start' to enter the environment."
 
-install:
-	$(PIP) install -e ".[dev]"
+start: ## Spawns a new terminal shell with the virtual environment activated
+	@echo "Entering virtual environment... (Type 'exit' to leave)"
+	@bash -c "source $(VENV_DIR)/bin/activate && exec bash"
 
-setup: clean
-	$(PYTHON) -m venv .venv
-	@echo "Virtual environment created. Run 'source .venv/bin/activate' or similar."
+# --- Code Quality (Linting & Formatting) ---
 
-# --- 2. The "Golden Standard" Clean (Min-Maxed) ---
+format: ## Auto-format code using Ruff (fixes imports, spacing, and modernizes syntax)
+	$(PYTHON) -m ruff check --fix .
+	$(PYTHON) -m ruff format .
 
-tidy:
-	@echo "--- Step 1: Injecting Type Hints (Autotyping) ---"
-	-python -m autotyping $(F) --none-return --scalar-return --int-param --float-param --str-param
+lint: ## Run strict type checking (Mypy) and linter warnings (Ruff)
+	$(PYTHON) -m ruff check .
+	$(PYTHON) -m mypy src/
 
-	@echo "--- Step 2: Fixing Linting & Docstrings (Ruff) ---"
-	ruff check --fix --unsafe-fixes $(F)
+clean-python: ## Remove all Python cache files (__pycache__, .ruff_cache, .mypy_cache)
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	rm -rf .ruff_cache .mypy_cache .pytest_cache
+	@echo "Cleaned all Python cache directories."
 
-	@echo "--- Step 3: Global Formatting (Ruff) ---"
-	ruff format $(F)
+# --- Execution ---
 
-	@echo "--- Step 4: Static Analysis Check (Mypy) ---"
-	-mypy $(F)
-	@echo "✨ File(s) are now at the Gold Standard."
-
-# --- 3. Cleaning Artifacts ---
-
-clean:
-	@echo "Cleaning caches and data outputs..."
-	rm -rf `find . -type d -name "__pycache__"`
-	rm -rf .pytest_cache .ruff_cache .mypy_cache
-	find . -type f -name "*.pyc" -delete
-	find . -type f -name "*.log" -delete
-	rm -rf data/augmented/* data/output/*
-
-# --- 4. Pipeline Execution Scenarios ---
-
-run-full:
-	$(PYTHON) main.py
-
-run-smoke:
+test-run: ## Run the pipeline in test mode (only uses 2 seeds for quick debugging)
 	$(PYTHON) main.py --test
 
-run-debug:
-	$(PYTHON) main.py --test --no-parallel
+run: ## Run the full automatic pipeline on all datasets
+	$(PYTHON) main.py
+
+run-dataset: ## Run the pipeline for a specific dataset (Usage: make run-dataset DS=car_traffic)
+	@if [ -z "$(DS)" ]; then echo "Error: Please specify a dataset. Example: make run-dataset DS=car_traffic"; exit 1; fi
+	$(PYTHON) main.py --datasets $(DS)
+
+run-analyze: ## Run ONLY the final statistical analysis and LaTeX reporting
+	$(PYTHON) main.py --analyze
+
+# --- Granular Cleaning (Data & Outputs) ---
+
+clean-all: clean-python ## CAUTION: Delete ALL augmented data and ALL evaluation outputs
+	rm -rf data/augmented/*
+	rm -rf data/output/*
+	@echo "Cleaned all augmented data and outputs."
+
+clean-aug: ## Delete ONLY the augmented data (.feather files), keep evaluation results
+	rm -rf data/augmented/*
+	@echo "Cleaned augmented data. Raw data is untouched."
+
+clean-eval: ## Delete ONLY the model evaluations, optimization history, and reports. Keeps augmented data!
+	rm -rf data/output/*
+	@echo "Cleaned evaluation outputs. You can now re-evaluate without re-augmenting."
+
+clean-dataset: ## Delete ALL generated data/results for a specific dataset (Usage: make clean-dataset DS=car_traffic)
+	@if [ -z "$(DS)" ]; then echo "Error: Please specify a dataset. Example: make clean-dataset DS=car_traffic"; exit 1; fi
+	rm -rf data/augmented/$(DS)
+	rm -rf data/output/optimization/details/$(DS)
+	rm -rf data/output/analysis/images/$(DS)
+	rm -rf data/output/analysis/reports/$(DS)
+	rm -f data/output/model_states/$(DS)_best_params.csv
+	rm -f data/output/optimization/history/$(DS)_baseline_tuning.csv
+	@echo "Cleaned all generated data and results for $(DS)."

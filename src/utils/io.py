@@ -22,7 +22,7 @@ def load_dataframe(filepath: str, dtype: Optional[Dict[str, Any]] = None) -> pd.
         default_dtype.update(dtype)
 
     try:
-        # 1. IDENTIFY AND LOAD FORMAT
+        # 1. Identify and load format
         if filepath.endswith(".feather"):
             # Note: memory_map is handled internally by pyarrow;
             # not exposed as a kwarg in the pandas wrapper.
@@ -32,7 +32,7 @@ def load_dataframe(filepath: str, dtype: Optional[Dict[str, Any]] = None) -> pd.
         else:
             raise ValueError(f"Unsupported file format: {filepath}")
 
-        # 2. STANDARDIZE DATA (Post-Load)
+        # 2. Standardize data (Post-Load)
 
         # Ensure TID is always a string (prevents leading zero bug)
         if "tid" in df.columns:

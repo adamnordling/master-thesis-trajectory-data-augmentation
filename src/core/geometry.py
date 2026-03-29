@@ -37,7 +37,6 @@ def _generate_random_points_on_circle_border(
     # Geodetic calculation
     new_lons, new_lats, _ = geod.fwd(lons, lats, bearings, radii * 1000)
 
-    # --- NEW CODE ---
     new_lats = np.clip(new_lats, -90.0, 90.0)
     new_lons = (new_lons + 180) % 360 - 180  # Wrap longitudes to [-180, 180]
     return new_lats, new_lons

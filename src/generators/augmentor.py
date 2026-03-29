@@ -42,7 +42,7 @@ def apply_augmentation_pipeline(
     logger.debug(f"Input points shape: {trajectory_points_df.shape}")
     logger.debug(f"Input features shape: {trajectory_feats_df.shape}")
 
-    # --- Step 1: Selection ---
+    # Step 1: Selection
     # The strategy analyzes features and returns a list of TIDs
     trajs_tids_to_augment = strategy.select(trajectory_feats_df)
     logger.info(f"Strategy selected {len(trajs_tids_to_augment)} trajectories for augmentation.")
@@ -50,7 +50,7 @@ def apply_augmentation_pipeline(
     # Filter raw points to just the selected trajectories
     selected_trajs_points_df = trajectory_points_df[trajectory_points_df["tid"].isin(trajs_tids_to_augment)].copy()
 
-    # --- Step 2: Edge Case Handling ---
+    # Step 2: Edge Case Handling
     # If the strategy returned nothing (e.g., extremely strict filtering), return original data
     if selected_trajs_points_df.empty:
         logger.warning("No trajectories selected for augmentation. Returning original dataset unchanged.")
@@ -59,7 +59,7 @@ def apply_augmentation_pipeline(
             original_df["augmented"] = 0
         return original_df
 
-    # --- Step 3: Augmentation (The Geometry Core) ---
+    # Step 3: Augmentation
     try:
         # shift_points_randomly returns a DF with:
         # 1. The original selected trajectories (augmented=0)
@@ -81,7 +81,7 @@ def apply_augmentation_pipeline(
         original_df["augmented"] = 0
         return original_df
 
-    # --- Step 4: Re-assembly ---
+    # Step 4: Re-assembly
     # We have the augmented selected data. Now we need the unselected data.
     non_selected_tids = [tid for tid in trajectory_points_df["tid"].unique() if tid not in trajs_tids_to_augment]
 
@@ -94,7 +94,6 @@ def apply_augmentation_pipeline(
     final_df = pd.concat([augmented_df, non_selected_df], ignore_index=True)
 
     logger.info(f"Pipeline complete. Final dataset shape: {final_df.shape}")
-    # --- ADD THIS BEFORE RETURNING final_df ---
     before = trajectory_points_df.drop_duplicates("tid")["label"].value_counts(normalize=True)
     after = final_df.drop_duplicates("tid")["label"].value_counts(normalize=True)
     logger.info(f"Class distribution check (Before vs After): \n{before} \nvs\n {after}")

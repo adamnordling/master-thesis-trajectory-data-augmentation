@@ -15,7 +15,6 @@ from src.utils import load_dataframe, save_dataframe
 # Initialize Logger
 logger = logging.getLogger(__name__)
 
-# --- PATH CONFIGURATION ---
 # Determine project root relative to this file: src/pipeline/workers.py -> ../../
 current_dir = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.abspath(os.path.join(current_dir, "..", ".."))
@@ -69,7 +68,6 @@ def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
         if not stationary_tids.empty:
             logger.info(f"[{dataset_name}] Removing {len(stationary_tids)} stationary trajectories (no movement).")
             df = df[~df["tid"].isin(stationary_tids)]
-        # ---------------------------
 
         # 3. Filter single-trajectory classes
         # StratifiedShuffleSplit throws errors if a class has only 1 member.
@@ -229,7 +227,6 @@ def extract_aug_features_worker(task_args: Tuple) -> Dict[str, Any]:
             # 2. Ensure Unique TIDs
             # We append the augmentation ID to the TID to make it unique (e.g., "123_1")
             # This is critical for the feature extraction to group correctly
-            # --- NEW CODE (Bulletproof string concatenation) ---
             # Using .str.cat ensures that if TID was "001", it stays "001_1"
             # and never becomes "1_1" or "1.0_1"
             aug_only_df["tid"] = aug_only_df["tid"].astype(str).str.cat(aug_only_df["augmented"].astype(str), sep="_")

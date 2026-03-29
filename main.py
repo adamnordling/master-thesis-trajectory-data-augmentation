@@ -122,7 +122,7 @@ def parse_args() -> argparse.Namespace:
         help="Proportion of points to shift (default: 0.2)",
     )
 
-    # --- System & Debugging ---
+    # System & Debugging
     parser.add_argument(
         "--test", action="store_true", help="Run in test mode (uses first 2 seeds only)"
     )
@@ -185,11 +185,10 @@ def main() -> None:
         if not validate_storage_capacity(manager, datasets_to_process):
             logger.critical("Aborting run due to storage constraints.")
             sys.exit(1)
-        # ----------------------------------
+
         logger.info(f"Target Datasets: {datasets_to_process}")
         logger.info(f"Target Strategies: {strategies_to_process}")
 
-        # --- SPECIAL CASE: Standalone Analysis ---
         if args.analyze:
             logger.info("--- Running Final Analysis Only ---")
             manager.run_final_analysis(datasets_to_process)
@@ -200,7 +199,7 @@ def main() -> None:
         )
 
         if manual_steps_requested:
-            # --- MANUAL MODE (Dataset Isolation Loop) ---
+            # Manual mode:
             logger.info("--- Running in Manual Mode ---")
             run_suffix = f"_p{int(args.prop * 100)}_n{args.n_aug}_pp{int(args.points_prop * 100)}"
 
@@ -227,7 +226,7 @@ def main() -> None:
                 manager.generate_reports(datasets_to_process)
 
         else:
-            # --- AUTOMATIC MODE (The Specialist Loop) ---
+            # Automatic mode:
             logger.info("--- Running in Automatic Mode (Full Optuna Loop with Isolation) ---")
 
             # Bulk processing for Step 1 & 2 (maximize CPU usage)

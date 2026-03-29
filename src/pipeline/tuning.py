@@ -43,7 +43,6 @@ def objective(trial: optuna.Trial, manager: PipelineManager, datasets: List[str]
     if os.path.exists(combined_csv_path):
         try:
             results_df = pd.read_csv(combined_csv_path)
-            # --- IMPROVED LOGIC ---
             # Only skip if the cache contains all the strategies we are looking for!
             existing_strategies = results_df["strategy"].unique()
             if all(s in existing_strategies for s in strategies):

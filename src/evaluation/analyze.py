@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from scipy.stats import ttest_rel
 
-# --- Configuration ---
+# Config
 ALPHA = 0.05
 MIN_SEEDS_FOR_TEST = 5
 MODEL_ORDER = ["LogisticRegression", "MLP", "RandomForest", "XGBoost"]
@@ -149,7 +149,6 @@ def save_artifacts(results_df: pd.DataFrame, dataset_name: str, best_params: Dic
     output_dir = os.path.join(PROJECT_ROOT, "data", "output", "analysis", "reports", dataset_name)
     os.makedirs(output_dir, exist_ok=True)
 
-    # --- Save to a NEW, SIMPLIFIED, ROBUST LaTeX table ---
     latex_path = os.path.join(output_dir, f"{dataset_name}_final_table.tex")
 
     caption_text = (
