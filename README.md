@@ -53,7 +53,7 @@ The system expects columns: `tid` (Trajectory ID), `lat`, `lon`, `time`, `label`
 This project uses `pyproject.toml` for modern dependency management. You can set it up automatically via the included Makefile (Linux/Mac/WSL) or manually (Windows).
 
 
-**Method A: Automated Setup (Mac / Linux / Windows WSL) - Recommended**
+**Method A: Automated Setup (Mac / Linux / Windows GNU Make/WSL) - Recommended**
 ```bash
 # Automatically creates a virtual environment and installs all dependencies
 make install
@@ -61,7 +61,7 @@ make install
 # Enter the virtual environment shell
 make start
 ```
-**Method B: Manual Setup (Windows Native)**
+**Method B: Manual Setup**
 ```bash
 # Create virtual environment
 python -m venv venv
