@@ -1,7 +1,7 @@
 import gc
 import logging
 import os
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -24,9 +24,8 @@ RAW_DATA_DIR = os.path.join(ROOT_DIR, "data", "raw")
 AUG_DATA_DIR = os.path.join(ROOT_DIR, "data", "augmented")
 
 
-def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
-    """
-    Worker: Reads raw CSV (data/raw), cleans it, splits into Train/Test,
+def prepare_dataset_worker(task_args: tuple) -> dict[str, Any]:
+    """Worker: Reads raw CSV (data/raw), cleans it, splits into Train/Test,
     and saves as .feather files to data/augmented/{dataset}/{seed}/.
 
     Args:
@@ -111,9 +110,8 @@ def prepare_dataset_worker(task_args: Tuple) -> Dict[str, Any]:
         gc.collect()
 
 
-def extract_features_worker(filepath: str) -> Dict[str, Any]:
-    """
-    Worker: Loads a trajectory points file, calculates features, and saves them.
+def extract_features_worker(filepath: str) -> dict[str, Any]:
+    """Worker: Loads a trajectory points file, calculates features, and saves them.
 
     Args:
         filepath: Full path to the _pts.feather file.
@@ -141,9 +139,8 @@ def extract_features_worker(filepath: str) -> Dict[str, Any]:
         gc.collect()
 
 
-def augment_data_worker(task_args: Tuple) -> Dict[str, Any]:
-    """
-    Worker: Executes the Augmentation Pipeline.
+def augment_data_worker(task_args: tuple) -> dict[str, Any]:
+    """Worker: Executes the Augmentation Pipeline.
 
     1. Loads Train Points and Train Features (Feather).
     2. Instantiates the selection Strategy.
@@ -195,9 +192,8 @@ def augment_data_worker(task_args: Tuple) -> Dict[str, Any]:
         gc.collect()
 
 
-def extract_aug_features_worker(task_args: Tuple) -> Dict[str, Any]:
-    """
-    Worker: Optimized feature extraction for augmented data.
+def extract_aug_features_worker(task_args: tuple) -> dict[str, Any]:
+    """Worker: Optimized feature extraction for augmented data.
 
     Instead of recalculating features for the whole dataset, it:
     1. Loads the augmented dataset.

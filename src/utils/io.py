@@ -1,15 +1,14 @@
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-def load_dataframe(filepath: str, dtype: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
-    """
-    Robustly loads a DataFrame from CSV or Feather format.
+def load_dataframe(filepath: str, dtype: dict[str, Any] | None = None) -> pd.DataFrame:
+    """Robustly loads a DataFrame from CSV or Feather format.
 
     Enforces coordinate precision and Trajectory ID string types upon loading.
     """
@@ -17,7 +16,7 @@ def load_dataframe(filepath: str, dtype: Optional[Dict[str, Any]] = None) -> pd.
         raise FileNotFoundError(f"Data file not found: {filepath}")
 
     # Use Any for values to satisfy Mypy's complex Union requirements for read_csv
-    default_dtype: Dict[str, Any] = {"tid": str, "label": str}
+    default_dtype: dict[str, Any] = {"tid": str, "label": str}
     if dtype:
         default_dtype.update(dtype)
 
@@ -28,7 +27,7 @@ def load_dataframe(filepath: str, dtype: Optional[Dict[str, Any]] = None) -> pd.
             # not exposed as a kwarg in the pandas wrapper.
             df = pd.read_feather(filepath)
         elif filepath.endswith(".csv"):
-            df = pd.read_csv(filepath, dtype=default_dtype, engine='pyarrow')
+            df = pd.read_csv(filepath, dtype=default_dtype, engine="pyarrow")
         else:
             raise ValueError(f"Unsupported file format: {filepath}")
 
@@ -54,8 +53,7 @@ def load_dataframe(filepath: str, dtype: Optional[Dict[str, Any]] = None) -> pd.
 
 
 def save_dataframe(df: pd.DataFrame, filepath: str) -> None:
-    """
-    Saves a DataFrame to CSV or Feather, creating parent directories if needed.
+    """Saves a DataFrame to CSV or Feather, creating parent directories if needed.
 
     Utilizes LZ4 compression for Feather files to balance speed and disk usage.
     """

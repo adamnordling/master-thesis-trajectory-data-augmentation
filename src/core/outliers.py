@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 from scipy.spatial.distance import pdist
@@ -10,9 +10,8 @@ from sklearn.preprocessing import MinMaxScaler
 logger = logging.getLogger(__name__)
 
 
-def detect_outliers_dbos(dataset: np.ndarray, d: float = 1.0, fraction: float = 0.05) -> Dict[str, Any]:
-    """
-    Implements Density-Based Outlier Selection (DBOS).
+def detect_outliers_dbos(dataset: np.ndarray, d: float = 1.0, fraction: float = 0.05) -> dict[str, Any]:
+    """Implements Density-Based Outlier Selection (DBOS).
 
     Identifies outliers based on the density of neighbors within a hypersphere
     of radius `d`. Points with fewer neighbors than the threshold are flagged.
@@ -37,7 +36,7 @@ def detect_outliers_dbos(dataset: np.ndarray, d: float = 1.0, fraction: float = 
         logger.error("Dataset input contains non-numeric data.")
         raise ValueError("Dataset input is not numeric")
 
-    if not isinstance(d, (int, float)) or not isinstance(fraction, (int, float)):
+    if not isinstance(d, int | float) or not isinstance(fraction, int | float):
         raise ValueError("Parameters d and fraction must be numeric")
 
     n_samples = dataset.shape[0]
@@ -76,8 +75,7 @@ def detect_outliers_dbos(dataset: np.ndarray, d: float = 1.0, fraction: float = 
 
 
 def find_average_distance(dataset: np.ndarray, sample_size: int = 1000, seed: int = 42) -> float:
-    """
-    Calculates the average pairwise Euclidean distance for a dataset.
+    """Calculates the average pairwise Euclidean distance for a dataset.
 
     For datasets larger than `sample_size`, it estimates the distance using
     random sampling to avoid O(N^2) memory and time complexity.
@@ -85,6 +83,7 @@ def find_average_distance(dataset: np.ndarray, sample_size: int = 1000, seed: in
     Args:
         dataset: Numeric numpy array.
         sample_size: Max number of samples to use for calculation.
+        seed: Random seed for reproducibility.
 
     Returns:
         The average pairwise distance (float).

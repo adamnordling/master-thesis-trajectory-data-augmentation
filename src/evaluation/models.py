@@ -3,7 +3,7 @@ import logging
 import os
 import random
 import warnings
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -26,9 +26,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module="xgboost")
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", message="Inconsistent values: penalty=l1")
 
+
 def set_reproducibility(seed: int) -> None:
-    """
-    Set seeds for all relevant libraries to ensure full reproducibility.
+    """Set seeds for all relevant libraries to ensure full reproducibility.
 
     Ensures that Python, NumPy, and random state are locked to the specific seed.
     """
@@ -38,10 +38,9 @@ def set_reproducibility(seed: int) -> None:
 
 
 def get_model_definitions(
-    seed: int, model_config: Dict[str, Any], n_jobs: int = 1
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """
-    Instantiates model objects and builds hyperparameter grids from the YAML config.
+    seed: int, model_config: dict[str, Any], n_jobs: int = 1
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Instantiates model objects and builds hyperparameter grids from the YAML config.
 
     Args:
         seed: Random seed for initialization.
@@ -58,31 +57,35 @@ def get_model_definitions(
     models = {
         "RandomForest": RandomForestClassifier(random_state=seed, n_jobs=n_jobs),
         "XGBoost": xgb.XGBClassifier(random_state=seed, n_jobs=n_jobs, eval_metric="mlogloss"),
-        "MLP": Pipeline([
-            ("scaler", StandardScaler()),
-            (
-                "classifier",
-                MLPClassifier(
-                    max_iter=500,
-                    early_stopping=True,
-                    n_iter_no_change=15,
-                    random_state=seed,
+        "MLP": Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "classifier",
+                    MLPClassifier(
+                        max_iter=500,
+                        early_stopping=True,
+                        n_iter_no_change=15,
+                        random_state=seed,
+                    ),
                 ),
-            ),
-        ]),
-        "LogisticRegression": Pipeline([
-            ("scaler", StandardScaler()),
-            (
-                "classifier",
-                LogisticRegression(max_iter=10000, random_state=seed, n_jobs=n_jobs),
-            ),
-        ]),
+            ]
+        ),
+        "LogisticRegression": Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "classifier",
+                    LogisticRegression(max_iter=10000, random_state=seed, n_jobs=n_jobs),
+                ),
+            ]
+        ),
     }
 
     # 2. Build Grids from Config
     # Map clean YAML keys to specific Scikit-Learn parameter names for Pipelines.
     raw_grids = model_config.get("models", {})
-    param_grids: Dict[str, Any] = {}
+    param_grids: dict[str, Any] = {}
 
     # RandomForest (Direct mapping)
     if "RandomForest" in raw_grids:
@@ -109,18 +112,17 @@ def train_and_evaluate(
     seed: int,
     feature_type_name: str,
     cached_params: pd.DataFrame,
-    model_config: Dict[str, Any],
+    model_config: dict[str, Any],
     n_jobs_gridsearch: int = -1,
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """
-    Trains all defined models on the provided data.
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Trains all defined models on the provided data.
 
     Handles baseline tuning via GridSearch or loads cached parameters for augmented runs.
     """
     set_reproducibility(seed)
 
-    results: List[Dict[str, Any]] = []
-    new_params: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
+    new_params: list[dict[str, Any]] = []
 
     # 1. Prepare Data
     X_train, y_train, _ = prepare_data(train_df)
@@ -176,12 +178,14 @@ def train_and_evaluate(
                 final_model = grid_search.best_estimator_
 
                 # Store parameters for future augmented runs
-                new_params.append({
-                    "feature_type": "trajectory_features",
-                    "seed": seed,
-                    "model": model_name,
-                    "best_params": str(grid_search.best_params_),
-                })
+                new_params.append(
+                    {
+                        "feature_type": "trajectory_features",
+                        "seed": seed,
+                        "model": model_name,
+                        "best_params": str(grid_search.best_params_),
+                    }
+                )
             else:
                 # Case C: Safety check (Augmented run without prior baseline params)
                 logger.error(f"Missing baseline params for {model_name} (Seed {seed}). Skipping.")
@@ -191,12 +195,14 @@ def train_and_evaluate(
             y_pred = final_model.predict(X_test)
             f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
 
-            results.append({
-                "feature_type": feature_type_name,
-                "seed": seed,
-                "model": model_name,
-                "score": f1,
-            })
+            results.append(
+                {
+                    "feature_type": feature_type_name,
+                    "seed": seed,
+                    "model": model_name,
+                    "score": f1,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Error training {model_name} on seed {seed}: {e}")

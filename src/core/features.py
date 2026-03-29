@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Union, cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -52,22 +52,38 @@ def _get_fractal_indices_jit(group_size: int) -> np.ndarray:
 
 
 def _calculate_distances_vectorized(
-        lat1: np.ndarray, lon1: np.ndarray, lat2: np.ndarray, lon2: np.ndarray
-) -> List[float]:
+    lat1: np.ndarray, lon1: np.ndarray, lat2: np.ndarray, lon2: np.ndarray
+) -> list[float]:
     """Fast and accurate vectorized distance calculation using pyproj."""
     if len(lat1) == 0:
         return []
     _, _, distances_meters = _GEOD.inv(lon1, lat1, lon2, lat2)
-    return cast(List[float], distances_meters.tolist())
+    return cast(list[float], distances_meters.tolist())
 
 
-def _compute_stats(data_in: Union[np.ndarray, List[float]], prefix: str) -> Dict[str, float]:
+def _compute_stats(data_in: np.ndarray | list[float], prefix: str) -> dict[str, float]:
     """Compute statistical features (mean, std, skew, kurt, quantiles)."""
     data: np.ndarray = np.asarray(data_in)
     stat_keys = [
-        "0s", "mean", "meanse", "quant_min", "quant_05", "quant_10", "quant_25",
-        "quant_median", "quant_75", "quant_90", "quant_95", "quant_max",
-        "range", "sd", "vcoef", "mad", "iqr", "skew", "kurt",
+        "0s",
+        "mean",
+        "meanse",
+        "quant_min",
+        "quant_05",
+        "quant_10",
+        "quant_25",
+        "quant_median",
+        "quant_75",
+        "quant_90",
+        "quant_95",
+        "quant_max",
+        "range",
+        "sd",
+        "vcoef",
+        "mad",
+        "iqr",
+        "skew",
+        "kurt",
     ]
 
     if data.size == 0:
@@ -83,13 +99,15 @@ def _compute_stats(data_in: Union[np.ndarray, List[float]], prefix: str) -> Dict
 
     if np.isclose(data_range, 0, atol=1e-9) or np.isclose(std_val, 0, atol=1e-9):
         res = {f"{prefix}_{stat}": 0.0 for stat in stat_keys}
-        res.update({
-            f"{prefix}_mean": float(mean_val),
-            f"{prefix}_quant_min": float(np.min(data)),
-            f"{prefix}_quant_max": float(np.max(data)),
-            f"{prefix}_range": float(data_range),
-            f"{prefix}_sd": float(std_val),
-        })
+        res.update(
+            {
+                f"{prefix}_mean": float(mean_val),
+                f"{prefix}_quant_min": float(np.min(data)),
+                f"{prefix}_quant_max": float(np.max(data)),
+                f"{prefix}_range": float(data_range),
+                f"{prefix}_sd": float(std_val),
+            }
+        )
         return res
 
     q75, q25 = np.percentile(data, [75, 25])
@@ -119,7 +137,7 @@ def _compute_stats(data_in: Union[np.ndarray, List[float]], prefix: str) -> Dict
 
 def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
     """Extracts geometric and kinematic features from trajectory data."""
-    features: List[Dict[str, Any]] = []
+    features: list[dict[str, Any]] = []
 
     required_cols = {"tid", "lat", "lon", "time", "label"}
     if not required_cols.issubset(df.columns):
@@ -127,7 +145,7 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
 
     for tid, group in df.groupby("tid"):
         group_sorted = group.sort_values("time").reset_index(drop=True)
-        trajectory_features: Dict[str, Any] = {"tid": str(tid)}
+        trajectory_features: dict[str, Any] = {"tid": str(tid)}
         group_size = len(group_sorted)
 
         if group_size > 1:
@@ -139,7 +157,7 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
             segment_lengths = np.array(_calculate_distances_vectorized(lats[:-1], lons[:-1], lats[1:], lons[1:]))
 
             # 2. Optimized "Deltatime": Pure NumPy subtraction / seconds
-            time_diffs = np.diff(times) / np.timedelta64(1, 's')
+            time_diffs = np.diff(times) / np.timedelta64(1, "s")
         else:
             segment_lengths = np.array([], dtype=float)
             time_diffs = np.array([], dtype=float)
@@ -185,8 +203,9 @@ def extract_trajectory_features(df: pd.DataFrame) -> pd.DataFrame:
         accelerations = np.array([], dtype=float)
         if len(speeds) > 1:
             accel_times = (time_diffs[:-1] + time_diffs[1:]) / 2
-            accelerations = np.divide(np.diff(speeds), accel_times, out=np.zeros(len(speeds) - 1),
-                                      where=accel_times != 0)
+            accelerations = np.divide(
+                np.diff(speeds), accel_times, out=np.zeros(len(speeds) - 1), where=accel_times != 0
+            )
 
         trajectory_features.update(_compute_stats(speeds, "speed"))
         trajectory_features.update(_compute_stats(accelerations, "acceleration"))

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -11,9 +11,8 @@ logger = logging.getLogger(__name__)
 
 def _generate_random_points_on_circle_border(
     lats: np.ndarray, lons: np.ndarray, radii: np.ndarray, seed: int
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Generate random points on the border of a circle using robust geodesic calculations.
+) -> tuple[np.ndarray, np.ndarray]:
+    """Generate random points on the border of a circle using robust geodesic calculations.
 
     Args:
         lats: Array of latitude coordinates.
@@ -42,9 +41,8 @@ def _generate_random_points_on_circle_border(
     return new_lats, new_lons
 
 
-def _generate_new_geo_points(coords: np.ndarray, seed: int) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Generate new geographical points based on the input coordinates using midpoint displacement.
+def _generate_new_geo_points(coords: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Generate new geographical points based on the input coordinates using midpoint displacement.
 
     Args:
         coords: Numpy array of shape (N, 4) containing [lat1, lon1, lat2, lon2].
@@ -83,8 +81,7 @@ def _generate_new_geo_points(coords: np.ndarray, seed: int) -> Tuple[np.ndarray,
 def shift_points_randomly(
     trajectory_df: pd.DataFrame, n_aug_trajs: int, points_proportion: float, seed: int
 ) -> pd.DataFrame:
-    """
-    Augments trajectories by modifying a proportion of their interior points.
+    """Augments trajectories by modifying a proportion of their interior points.
 
     This function takes a DataFrame of trajectories, identifies interior segments,
     and geometrically shifts points based on the distance to their neighbors.
@@ -98,7 +95,7 @@ def shift_points_randomly(
     Returns:
         A new DataFrame containing BOTH original and augmented trajectories.
     """
-    all_records: List[Dict[str, Any]] = []
+    all_records: list[dict[str, Any]] = []
     unique_tids = trajectory_df["tid"].unique()
 
     logger.info(f"Starting geometric augmentation for {len(unique_tids)} trajectories.")

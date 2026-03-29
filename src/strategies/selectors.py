@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -17,19 +17,20 @@ logger = logging.getLogger(__name__)
 
 
 class RandomTrajectorySelection(TrajectorySelectionMethod):
-    """
-    Selects trajectories purely at random, respecting class balance.
+    """Selects trajectories purely at random, respecting class balance.
     Parameters: None specific.
     """
 
-    def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
+    def __init__(self, proportion: float, seed: int = 1415, params: dict[str, Any] | None = None) -> None:
+        """Initialize RandomTrajectorySelection."""
         super().__init__(proportion, seed)
         self.params = params or {}
 
-    def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
+    def select(self, trajectory_feats_df: pd.DataFrame) -> list[str]:
+        """Selects trajectories at random while maintaining class balance."""
         unique_tids = trajectory_feats_df["tid"].unique()
         unique_labels = trajectory_feats_df["label"].unique()
-        selected_tids: List[str] = []
+        selected_tids: list[str] = []
 
         rng = np.random.default_rng(self.seed)
 
@@ -57,20 +58,21 @@ class RandomTrajectorySelection(TrajectorySelectionMethod):
 
 
 class SelectTrajectoryBasedOnOutlierness(TrajectorySelectionMethod):
-    """
-    Selects the most 'outlier-ish' trajectories using DBOS.
+    """Selects the most 'outlier-ish' trajectories using DBOS.
 
     YAML Configuration Usage:
         outlierness:
             default_radius: 1.0  # Used if average distance calc fails
     """
 
-    def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
+    def __init__(self, proportion: float, seed: int = 1415, params: dict[str, Any] | None = None) -> None:
+        """Initializes the outlierness selector with optional parameters."""
         super().__init__(proportion, seed)
         self.params = params or {}
         self.default_radius = self.params.get("default_radius", 1.0)
 
-    def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
+    def select(self, trajectory_feats_df: pd.DataFrame) -> list[str]:
+        """Selects trajectories with the highest outlier scores based on DBOS, ensuring class balance."""
         df = (
             trajectory_feats_df.reset_index()
             if "tid" not in trajectory_feats_df.columns
@@ -78,8 +80,8 @@ class SelectTrajectoryBasedOnOutlierness(TrajectorySelectionMethod):
         )
 
         unique_tids = df["tid"].unique()
-        unique_labels = [l for l in df["label"].unique() if pd.notna(l)]
-        selected_tids: List[str] = []
+        unique_labels = [label for label in df["label"].unique() if pd.notna(label)]
+        selected_tids: list[str] = []
 
         total_to_select = int(len(unique_tids) * self.proportion)
         num_per_label = max(1, total_to_select // len(unique_labels)) if unique_labels else 0
@@ -126,17 +128,17 @@ class SelectTrajectoryBasedOnOutlierness(TrajectorySelectionMethod):
 
 
 class SelectTrajectoryBasedOnDiversityMaximization(TrajectorySelectionMethod):
-    """
-    Selects diverse trajectories using K-Means clustering.
-    """
+    """Selects diverse trajectories using K-Means clustering."""
 
-    def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
+    def __init__(self, proportion: float, seed: int = 1415, params: dict[str, Any] | None = None) -> None:
+        """Initializes the diversity maximization selector with optional parameters for clustering."""
         super().__init__(proportion, seed)
         self.params = params or {}
         self.k_clusters = self.params.get("k_clusters", 5)
         self.batch_size = self.params.get("batch_size", 256)
 
-    def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
+    def select(self, trajectory_feats_df: pd.DataFrame) -> list[str]:
+        """Selects trajectories with the highest diversity by clustering and sampling from clusters, ensuring class balance."""
         df = (
             trajectory_feats_df.reset_index()
             if "tid" not in trajectory_feats_df.columns
@@ -144,8 +146,8 @@ class SelectTrajectoryBasedOnDiversityMaximization(TrajectorySelectionMethod):
         )
 
         unique_tids = df["tid"].unique()
-        unique_labels = [l for l in df["label"].unique() if pd.notna(l)]
-        selected_tids: List[str] = []
+        unique_labels = [label for label in df["label"].unique() if pd.notna(label)]
+        selected_tids: list[str] = []
 
         total_to_select = max(1, int(len(unique_tids) * self.proportion))
         num_per_label = max(1, total_to_select // len(unique_labels)) if unique_labels else 0
@@ -203,15 +205,16 @@ class SelectTrajectoryBasedOnDiversityMaximization(TrajectorySelectionMethod):
 
 
 class SelectTrajectoryBasedOnRepresentativeness(TrajectorySelectionMethod):
-    """
-    Selects most representative (central) trajectories using Z-scores.
-    """
+    """Selects most representative (central) trajectories using Z-scores."""
 
-    def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
+    def __init__(self, proportion: float, seed: int = 1415, params: dict[str, Any] | None = None) -> None:
+        """Initializes the representativeness selector with optional parameters (currently unused but can be extended)."""
+        """Initializes the representativeness selector."""
         super().__init__(proportion, seed)
         self.params = params or {}
 
-    def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
+    def select(self, trajectory_feats_df: pd.DataFrame) -> list[str]:
+        """Selects trajectories that are most representative (closest to mean) based on Z-scores, ensuring class balance."""
         df = (
             trajectory_feats_df.reset_index()
             if "tid" not in trajectory_feats_df.columns
@@ -219,8 +222,8 @@ class SelectTrajectoryBasedOnRepresentativeness(TrajectorySelectionMethod):
         )
 
         unique_tids = df["tid"].unique()
-        unique_labels = [l for l in df["label"].unique() if pd.notna(l)]
-        selected_tids: List[str] = []
+        unique_labels = [label for label in df["label"].unique() if pd.notna(label)]
+        selected_tids: list[str] = []
 
         total_to_select = int(len(unique_tids) * self.proportion)
         total_rows = len(df[df["label"].isin(unique_labels)])
@@ -256,11 +259,10 @@ class SelectTrajectoryBasedOnRepresentativeness(TrajectorySelectionMethod):
 
 
 class SelectTrajectoryBasedOnUncertainty(TrajectorySelectionMethod):
-    """
-    Selects trajectories where a model is most uncertain (Active Learning).
-    """
+    """Selects trajectories where a model is most uncertain (Active Learning)."""
 
-    def __init__(self, proportion: float, seed: int = 1415, params: Optional[Dict[str, Any]] = None):
+    def __init__(self, proportion: float, seed: int = 1415, params: dict[str, Any] | None = None) -> None:
+        """Initializes the uncertainty selector with a simple logistic regression model and optional parameters for model configuration."""
         super().__init__(proportion, seed)
         self.params = params or {}
         self.scout_model = make_pipeline(
@@ -268,7 +270,8 @@ class SelectTrajectoryBasedOnUncertainty(TrajectorySelectionMethod):
             LogisticRegression(random_state=self.seed, solver="lbfgs", max_iter=1000),
         )
 
-    def select(self, trajectory_feats_df: pd.DataFrame) -> List[str]:
+    def select(self, trajectory_feats_df: pd.DataFrame) -> list[str]:
+        """Selects trajectories where the logistic regression model is most uncertain (closest to 0.5 probability), ensuring class balance."""
         df = (
             trajectory_feats_df.reset_index()
             if "tid" not in trajectory_feats_df.columns
@@ -292,7 +295,7 @@ class SelectTrajectoryBasedOnUncertainty(TrajectorySelectionMethod):
 
         scores_df = pd.DataFrame({"tid": tids, "label": labels, "uncertainty": uncertainty_scores})
 
-        selected_tids: List[str] = []
+        selected_tids: list[str] = []
         for _, group in scores_df.groupby("label"):
             group = group.sort_values(by="uncertainty", ascending=False)
             num_to_select = max(1, int(len(group) * self.proportion))

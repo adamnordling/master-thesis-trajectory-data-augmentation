@@ -19,8 +19,7 @@ def apply_augmentation_pipeline(
     points_proportion: float,
     seed: int,
 ) -> pd.DataFrame:
-    """
-    Coordinator function that runs the full augmentation pipeline on a dataset.
+    """Coordinator function that runs the full augmentation pipeline on a dataset.
 
     1. Uses the Strategy to select TIDs from the features DataFrame.
     2. Filters the raw points DataFrame to those TIDs.

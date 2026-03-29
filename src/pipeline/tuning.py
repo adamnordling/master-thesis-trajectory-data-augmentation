@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, List, Sequence, Union
+from collections.abc import Sequence
 
 import optuna
 import pandas as pd
@@ -12,16 +12,14 @@ from src.pipeline.manager import PipelineManager
 logger = logging.getLogger(__name__)
 
 
-def objective(trial: optuna.Trial, manager: PipelineManager, datasets: List[str], strategies: List[str]) -> float:
-    """
-    The Optuna Objective Function.
+def objective(trial: optuna.Trial, manager: PipelineManager, datasets: list[str], strategies: list[str]) -> float:
+    """The Optuna Objective Function.
 
     1. Suggests hyperparameters (Proportion, N_Augmentations, Points_Proportion).
     2. Checks if this combination already exists in the results folder (Caching).
     3. If missing, instructs the Manager to run the specific pipeline steps.
     4. Returns the average F1 score across all datasets for this configuration.
     """
-
     # 1. Define Search Space
     # We use categorical to allow GridSampler to work effectively
     p: float = trial.suggest_categorical("proportion", [0.1, 0.2, 0.4])
@@ -116,9 +114,8 @@ def objective(trial: optuna.Trial, manager: PipelineManager, datasets: List[str]
     return float(aug_res["score"].mean())
 
 
-def run_tuning(manager: PipelineManager, datasets: List[str], strategies: List[str]) -> None:
-    """
-    Sets up and runs the Optuna study with persistence support.
+def run_tuning(manager: PipelineManager, datasets: list[str], strategies: list[str]) -> None:
+    """Sets up and runs the Optuna study with persistence support.
 
     Uses a local SQLite database to allow the study to be resumed if interrupted.
     """
@@ -128,7 +125,7 @@ def run_tuning(manager: PipelineManager, datasets: List[str], strategies: List[s
 
     # Define the search space for the GridSampler
     # Explicit typing to satisfy Optuna Mapping requirement
-    search_space: Dict[str, Sequence[Union[str, float, int, bool, None]]] = {
+    search_space: dict[str, Sequence[str | float | int | bool | None]] = {
         "proportion": [0.1, 0.2, 0.4],
         "n_aug_trajs": [1, 3, 5],
         "points_proportion": [0.1, 0.2, 0.4],

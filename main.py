@@ -1,27 +1,22 @@
 import argparse
 import logging
 import os
+import shutil
 import sys
-from typing import List
-
-from src.utils.profiler import PerformanceTracker
-
-# Ensure src is in python path for module discovery
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.pipeline.manager import PipelineManager
 from src.pipeline.tuning import run_tuning
 from src.utils.config import load_config
 from src.utils.logging import setup_logging
+from src.utils.profiler import PerformanceTracker
 
+# Ensure src is in python path for module discovery
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 logger = logging.getLogger(__name__)
 
-import shutil
 
-
-def validate_storage_capacity(manager: PipelineManager, datasets: List[str]) -> bool:
-    """
-    Predicts disk usage using a conservative 600x expansion factor
+def validate_storage_capacity(manager: PipelineManager, datasets: list[str]) -> bool:
+    """Predicts disk usage using a conservative 600x expansion factor
     to account for small-file overhead and metadata.
     """
     logger.info("--- Performing Storage Capacity Audit ---")
@@ -32,7 +27,7 @@ def validate_storage_capacity(manager: PipelineManager, datasets: List[str]) -> 
         if not os.path.exists(raw_path):
             continue
 
-        raw_size_gb = os.path.getsize(raw_path) / (1024 ** 3)
+        raw_size_gb = os.path.getsize(raw_path) / (1024**3)
 
         # ADJUSTED HEURISTIC:
         # Car Traffic: 2.5MB -> 1.42GB (approx 560x)
@@ -41,7 +36,7 @@ def validate_storage_capacity(manager: PipelineManager, datasets: List[str]) -> 
         projected_for_this_ds = raw_size_gb * 600
         total_projected_gb += projected_for_this_ds
 
-    free_gb = shutil.disk_usage(manager.output_root).free / (1024 ** 3)
+    free_gb = shutil.disk_usage(manager.output_root).free / (1024**3)
 
     logger.info(f"Projected Disk Requirement: {total_projected_gb:.2f} GB")
     logger.info(f"Available Space on Drive:  {free_gb:.2f} GB")
@@ -53,21 +48,14 @@ def validate_storage_capacity(manager: PipelineManager, datasets: List[str]) -> 
     logger.info("Storage audit passed.")
     return True
 
+
 def parse_args() -> argparse.Namespace:
-    """
-    Defines and parses the command-line arguments for the pipeline.
-    """
-    parser = argparse.ArgumentParser(
-        description="Professional Trajectory Data Augmentation Pipeline"
-    )
+    """Defines and parses the command-line arguments for the pipeline."""
+    parser = argparse.ArgumentParser(description="Professional Trajectory Data Augmentation Pipeline")
 
     # --- Workflow Flags (Step-by-Step execution) ---
-    parser.add_argument(
-        "--prepare", action="store_true", help="Step 1: Prepare datasets (Split/Clean)"
-    )
-    parser.add_argument(
-        "--extract", action="store_true", help="Step 2: Extract features from raw data"
-    )
+    parser.add_argument("--prepare", action="store_true", help="Step 1: Prepare datasets (Split/Clean)")
+    parser.add_argument("--extract", action="store_true", help="Step 2: Extract features from raw data")
     parser.add_argument(
         "--augment",
         action="store_true",
@@ -78,12 +66,8 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Step 4: Extract features from augmented data",
     )
-    parser.add_argument(
-        "--evaluate", action="store_true", help="Step 5: Run evaluation manually"
-    )
-    parser.add_argument(
-        "--report", action="store_true", help="Step 6: Generate final reports"
-    )
+    parser.add_argument("--evaluate", action="store_true", help="Step 5: Run evaluation manually")
+    parser.add_argument("--report", action="store_true", help="Step 6: Generate final reports")
     parser.add_argument(
         "--analyze",
         action="store_true",
@@ -123,9 +107,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     # System & Debugging
-    parser.add_argument(
-        "--test", action="store_true", help="Run in test mode (uses first 2 seeds only)"
-    )
+    parser.add_argument("--test", action="store_true", help="Run in test mode (uses first 2 seeds only)")
     parser.add_argument(
         "--no-parallel",
         action="store_false",
@@ -137,9 +119,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """
-    Orchestrates the Trajectory Augmentation Pipeline.
-    """
+    """Orchestrates the Trajectory Augmentation Pipeline."""
     profiler = PerformanceTracker()
     setup_logging()
     args = parse_args()

@@ -2,7 +2,7 @@ import datetime
 import os
 import platform
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     import psutil
@@ -11,29 +11,30 @@ except ImportError:
 
 
 class PerformanceTracker:
-    """
-    Tracks execution time across the pipeline.
+    """Tracks execution time across the pipeline.
     Categorizes timings into Global steps and Dataset-specific missions.
     """
 
     def __init__(self) -> None:
-        self.timings: Dict[str, float] = {}
-        self.data: Dict[str, Any] = {
-            "start_time_utc": datetime.datetime.utcnow().isoformat()
-        }
-        self.start_times: Dict[str, float] = {}
+        """Initializes the performance tracker."""
+        self.timings: dict[str, float] = {}
+        self.data: dict[str, Any] = {"start_time_utc": datetime.datetime.utcnow().isoformat()}
+        self.start_times: dict[str, float] = {}
         self.start("total_run")
 
     def start(self, key: str) -> None:
+        """Starts a timer for a given key. Use descriptive keys like 'prep', 'extraction', 'training_datasetA', etc."""
         self.start_times[key] = time.time()
 
     def stop(self, key: str) -> None:
+        """Stops the timer for a given key and records the duration. If the key was not started, it will be ignored."""
         if key in self.start_times:
             duration = time.time() - self.start_times[key]
             self.timings[key] = duration
             del self.start_times[key]
 
     def set_info(self, key: str, value: Any) -> None:
+        """Sets additional information about the run, such as number of workers used, dataset names, etc. This is for contextual data that doesn't fit into timings."""
         self.data[key] = value
 
     def _gather_system_info(self) -> None:
@@ -42,22 +43,22 @@ class PerformanceTracker:
         if psutil:
             self.data["physical_cores"] = psutil.cpu_count(logical=False)
             self.data["logical_cores"] = psutil.cpu_count(logical=True)
-            self.data["total_ram_gb"] = round(psutil.virtual_memory().total / (1024 ** 3), 2)
+            self.data["total_ram_gb"] = round(psutil.virtual_memory().total / (1024**3), 2)
         else:
             self.data["physical_cores"] = "N/A"
             self.data["logical_cores"] = os.cpu_count()
             self.data["total_ram_gb"] = "N/A"
 
-    def generate_report(self, dataset_names: List[str]) -> None:
-        """
-        Generates a grouped performance report.
+    def generate_report(self, dataset_names: list[str]) -> None:
+        """Generates a grouped performance report.
         Groups timings by dataset for a clean mission-based audit.
         """
         self.stop("total_run")
         self._gather_system_info()
 
         output_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "data", "output", "performance"))
+            os.path.join(os.path.dirname(__file__), "..", "..", "data", "output", "performance")
+        )
         os.makedirs(output_dir, exist_ok=True)
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -75,7 +76,7 @@ class PerformanceTracker:
             f"  - OS: {self.data.get('system_platform')} | Cores: {self.data.get('logical_cores')} | RAM: {self.data.get('total_ram_gb')} GB",
             f"  - Workers: {self.data.get('parallel_workers_used')}",
             "=" * 80,
-            ""
+            "",
         ]
 
         # --- SECTION 1: GLOBAL STEPS (Prep/Extraction) ---
@@ -117,6 +118,7 @@ class PerformanceTracker:
 
         try:
             import colorama
+
             print(f"\n{colorama.Fore.GREEN}Performance audit saved to:{colorama.Style.RESET_ALL} {report_path}")
         except ImportError:
             print(f"\nPerformance audit saved to: {report_path}")

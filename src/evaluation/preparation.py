@@ -1,13 +1,10 @@
-from typing import Tuple
-
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
 
-def prepare_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, LabelEncoder]:
-    """
-    Prepares feature matrix (X) and target vector (y) from a dataframe.
+def prepare_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, LabelEncoder]:
+    """Prepares feature matrix (X) and target vector (y) from a dataframe.
 
     Responsibilities:
     1. Separates Features (X) from Metadata (tid) and Targets (label).

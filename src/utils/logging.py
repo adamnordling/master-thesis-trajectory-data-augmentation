@@ -4,9 +4,8 @@ import sys
 from logging.handlers import RotatingFileHandler
 
 
-def setup_logging(log_dir: str = "logs", log_name: str = "pipeline.log", level=logging.INFO):
-    """
-    Configures the root logger with console and file handlers.
+def setup_logging(log_dir: str = "logs", log_name: str = "pipeline.log", level: int = logging.INFO) -> None:
+    """Configures the root logger with console and file handlers.
 
     Args:
         log_dir: Directory to save log files.

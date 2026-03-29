@@ -2,7 +2,7 @@ import argparse
 import glob
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 from scipy.stats import ttest_rel
@@ -28,7 +28,7 @@ except ImportError:
     GREEN = RED = YELLOW = RESET = ""
 
 
-def find_best_configs(dataset_name: str, history_dir: str) -> Optional[Dict[str, Dict[str, Any]]]:
+def find_best_configs(dataset_name: str, history_dir: str) -> dict[str, dict[str, Any]] | None:
     """Scans all Optuna trials to find the champion hyperparameter set for each strategy."""
     search_pattern = os.path.join(history_dir, f"{dataset_name}_p*.csv")
     all_files = glob.glob(search_pattern)
@@ -36,7 +36,7 @@ def find_best_configs(dataset_name: str, history_dir: str) -> Optional[Dict[str,
         print(f"{RED}Error: No Optuna trial files found for '{dataset_name}'.{RESET}")
         return None
 
-    strategy_champions: Dict[str, Dict[str, Any]] = {}
+    strategy_champions: dict[str, dict[str, Any]] = {}
     param_regex = re.compile(r"(_p\d+_n\d+_pp\d+)\.csv$")
 
     for f in all_files:
@@ -57,8 +57,10 @@ def find_best_configs(dataset_name: str, history_dir: str) -> Optional[Dict[str,
                 continue
 
             mean_score = float(group["score"].mean())
-            if strategy not in strategy_champions or mean_score > strategy_champions[strategy]["mean_score"]:
-                strategy_champions[strategy] = {"mean_score": mean_score, "best_suffix": run_suffix}
+            # We cast to str because Pandas groupby keys are dynamically typed
+            strat_key = str(strategy)
+            if strat_key not in strategy_champions or mean_score > strategy_champions[strat_key]["mean_score"]:
+                strategy_champions[strat_key] = {"mean_score": mean_score, "best_suffix": run_suffix}
 
     if not strategy_champions:
         print(f"{RED}Error: No valid strategies found across all Optuna trial files.{RESET}")
@@ -67,7 +69,7 @@ def find_best_configs(dataset_name: str, history_dir: str) -> Optional[Dict[str,
     return strategy_champions
 
 
-def load_final_comparison_data(dataset_name: str, history_dir: str, best_params: Dict[str, Any]) -> pd.DataFrame:
+def load_final_comparison_data(dataset_name: str, history_dir: str, best_params: dict[str, Any]) -> pd.DataFrame:
     """Loads the baseline data and the best data for each strategy into one DataFrame."""
     baseline_file = os.path.join(history_dir, f"{dataset_name}_baseline_tuning.csv")
     if not os.path.exists(baseline_file):
@@ -95,9 +97,9 @@ def load_final_comparison_data(dataset_name: str, history_dir: str, best_params:
     return pd.concat(all_dfs, ignore_index=True)
 
 
-def perform_statistical_analysis(df: pd.DataFrame, best_params: Dict[str, Any]) -> pd.DataFrame:
+def perform_statistical_analysis(df: pd.DataFrame, best_params: dict[str, Any]) -> pd.DataFrame:
     """Performs paired t-test and returns a results DataFrame."""
-    analysis_results: List[Dict[str, Any]] = []
+    analysis_results: list[dict[str, Any]] = []
 
     for model in MODEL_ORDER:
         model_df = df[df["model"] == model]
@@ -125,24 +127,25 @@ def perform_statistical_analysis(df: pd.DataFrame, best_params: Dict[str, Any]) 
                 is_significant = bool(p_value < ALPHA)
                 status = "OK"
 
-            analysis_results.append({
-                "model": model,
-                "strategy": strategy,
-                "mean_improvement_pct": mean_improvement * 100,
-                "p_value": p_value,
-                "is_significant": is_significant,
-                "significant_improvement": is_significant and mean_improvement > 0,
-                "num_seeds": num_seeds,
-                "status": status,
-                "best_suffix": best_params[strategy]["best_suffix"],
-            })
+            analysis_results.append(
+                {
+                    "model": model,
+                    "strategy": strategy,
+                    "mean_improvement_pct": mean_improvement * 100,
+                    "p_value": p_value,
+                    "is_significant": is_significant,
+                    "significant_improvement": is_significant and mean_improvement > 0,
+                    "num_seeds": num_seeds,
+                    "status": status,
+                    "best_suffix": best_params[strategy]["best_suffix"],
+                }
+            )
 
     return pd.DataFrame(analysis_results)
 
 
-def save_artifacts(results_df: pd.DataFrame, dataset_name: str, best_params: Dict[str, Any]) -> None:
-    """
-    Saves results to console, CSV, LaTeX, and Markdown files.
+def save_artifacts(results_df: pd.DataFrame, dataset_name: str, best_params: dict[str, Any]) -> None:
+    """Saves results to console, CSV, LaTeX, and Markdown files.
 
     Generates a professional reports directory structure and populates it with analysis files.
     """

@@ -1,5 +1,3 @@
-from typing import Type
-
 from src.strategies.base import TrajectorySelectionMethod
 from src.strategies.selectors import (
     RandomTrajectorySelection,
@@ -10,9 +8,8 @@ from src.strategies.selectors import (
 )
 
 
-def get_strategy_class(name: str) -> Type[TrajectorySelectionMethod]:
-    """
-    Factory function to retrieve the strategy class by name.
+def get_strategy_class(name: str) -> type[TrajectorySelectionMethod]:
+    """Factory function to retrieve the strategy class by name.
 
     Args:
         name: The name of the strategy ('random', 'outlierness', etc.)

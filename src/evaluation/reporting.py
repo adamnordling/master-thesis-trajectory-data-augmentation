@@ -2,7 +2,7 @@ import glob
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import matplotlib
 import numpy as np
@@ -25,9 +25,8 @@ def _clean_strategy_name(strategy: str) -> str:
     return strategy.capitalize()
 
 
-def _load_and_parse_results(results_dir: str, datasets: Optional[List[str]] = None) -> pd.DataFrame:
-    """
-    Scans the results directory for CSVs and robustly parses hyperparameters
+def _load_and_parse_results(results_dir: str, datasets: list[str] | None = None) -> pd.DataFrame:
+    """Scans the results directory for CSVs and robustly parses hyperparameters
     from both baseline and Optuna trial filenames.
     """
     history_dir = os.path.join(results_dir, "optimization", "history")
@@ -43,7 +42,7 @@ def _load_and_parse_results(results_dir: str, datasets: Optional[List[str]] = No
         logger.error(f"No result CSVs found in {history_dir}")
         return pd.DataFrame()
 
-    df_list: List[pd.DataFrame] = []
+    df_list: list[pd.DataFrame] = []
     param_regex = re.compile(r"_p(\d+)_n(\d+)_pp(\d+)\.csv$")
 
     for f in all_files:
@@ -86,9 +85,8 @@ def _load_and_parse_results(results_dir: str, datasets: Optional[List[str]] = No
     return combined_df
 
 
-def _generate_latex_table(df: pd.DataFrame, best_params: Dict[str, Any], output_path: str) -> None:
-    """
-    Generates the LaTeX table comparing models and strategies.
+def _generate_latex_table(df: pd.DataFrame, best_params: dict[str, Any], output_path: str) -> None:
+    """Generates the LaTeX table comparing models and strategies.
 
     Formats output to match thesis requirements including siunitx and bolded best scores.
     """
@@ -251,7 +249,7 @@ def create_final_summary_visualizations(results_df: pd.DataFrame, output_dir: st
     plt.close()
 
 
-def create_final_summary_reports(results_dir: str, datasets_to_process: Optional[List[str]] = None) -> None:
+def create_final_summary_reports(results_dir: str, datasets_to_process: list[str] | None = None) -> None:
     """Main entry point for generating final reports and Optimal Parameter Identification."""
     logger.info("Starting report generation...")
     master_df = _load_and_parse_results(results_dir, datasets_to_process)
@@ -260,12 +258,11 @@ def create_final_summary_reports(results_dir: str, datasets_to_process: Optional
         return
 
     aug_only_df = master_df[master_df["strategy"] != "baseline"].copy()
-    best_params_per_dataset: Dict[str, Any] = {}
+    best_params_per_dataset: dict[str, Any] = {}
 
     if not aug_only_df.empty:
         param_performance = (
-            aug_only_df
-            .groupby(["dataset", "proportion", "n_aug_trajs", "points_proportion"])["score"]
+            aug_only_df.groupby(["dataset", "proportion", "n_aug_trajs", "points_proportion"])["score"]
             .mean()
             .reset_index()
         )

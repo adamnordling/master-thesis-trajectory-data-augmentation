@@ -1,7 +1,8 @@
 import logging
 import os
+from collections.abc import Callable
 from multiprocessing import Pool, cpu_count
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 from tqdm import tqdm
@@ -24,8 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineManager:
-    """
-    Orchestrates the data processing pipeline.
+    """Orchestrates the data processing pipeline.
 
     Responsibilities:
     1. Discovery of datasets.
@@ -34,12 +34,13 @@ class PipelineManager:
     4. Managing the complex output directory structure for results.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]) -> None:
+        """Initializes the PipelineManager with configuration settings."""
         self.config = config
 
         # 1. Settings
-        self.seeds: List[int] = config["seeds"]
-        self.model_config: Dict[str, Any] = config.get("model_config", {})
+        self.seeds: list[int] = config["seeds"]
+        self.model_config: dict[str, Any] = config.get("model_config", {})
         self.use_parallel: bool = config["processing"]["parallel"]
         self.cpu_limit: float = config["processing"]["cpu_usage_limit"]
 
@@ -69,9 +70,9 @@ class PipelineManager:
             physical_cores = cpu_count()
         return max(1, int(physical_cores * self.cpu_limit))
 
-    def _discover_raw_datasets(self) -> Dict[str, Dict[str, str]]:
+    def _discover_raw_datasets(self) -> dict[str, dict[str, str]]:
         """Scans the data/raw directory for CSV files."""
-        datasets: Dict[str, Dict[str, str]] = {}
+        datasets: dict[str, dict[str, str]] = {}
         if not os.path.exists(self.raw_dir):
             logger.error(f"Raw data directory not found: {self.raw_dir}")
             return datasets
@@ -82,15 +83,13 @@ class PipelineManager:
                 datasets[dataset_name] = {"name": dataset_name, "csv_file": filename}
         return datasets
 
-    def _run_tasks(self, worker_func: Callable, tasks: List[Any], desc: str) -> None:
-        """
-        Generic driver for parallel execution.
-        """
+    def _run_tasks(self, worker_func: Callable, tasks: list[Any], desc: str) -> None:
+        """Generic driver for parallel execution."""
         if not tasks:
             logger.info(f"No tasks to run for: {desc}")
             return
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         if self.use_parallel and len(tasks) > 1:
             n_workers = self._get_max_workers()
             n_workers = min(n_workers, len(tasks))
@@ -109,11 +108,9 @@ class PipelineManager:
             for i, e in enumerate(errors):
                 logger.error(f"  [Error {i + 1}] Task: {e.get('task')} -> Message: {e.get('error')}")
 
-
-    def run_preparation(self, datasets: List[str]) -> None:
-        """
-        Step 1: Data Preparation.
-        Raw CSV -> Stratified Split Feather files in data/augmented/{dataset}/{seed}/
+    def run_preparation(self, datasets: list[str]) -> None:
+        """Step 1: Data Preparation.
+        Raw CSV -> Stratified Split Feather files in data/augmented/{dataset}/{seed}/.
         """
         available_raw = self._discover_raw_datasets()
         tasks = []
@@ -130,12 +127,11 @@ class PipelineManager:
 
         self._run_tasks(prepare_dataset_worker, tasks, "Preparing Datasets")
 
-    def run_feature_extraction(self, datasets: List[str]) -> None:
-        """
-        Step 2: Base Feature Extraction.
+    def run_feature_extraction(self, datasets: list[str]) -> None:
+        """Step 2: Base Feature Extraction.
         Calculates features for the standard Train and Test sets.
         """
-        tasks: List[str] = []
+        tasks: list[str] = []
         for name in datasets:
             for seed in self.seeds:
                 seed_dir = os.path.join(self.aug_dir, name, str(seed))
@@ -153,15 +149,14 @@ class PipelineManager:
 
     def run_augmentation(
         self,
-        datasets: List[str],
-        strategies: List[str],
+        datasets: list[str],
+        strategies: list[str],
         proportion: float,
         n_aug_trajs: int,
         points_proportion: float,
         run_suffix: str = "",
     ) -> None:
-        """
-        Step 3: Augmentation.
+        """Step 3: Augmentation.
         Generates new trajectories based on the selected strategies.
         """
         tasks = []
@@ -180,9 +175,8 @@ class PipelineManager:
 
         self._run_tasks(augment_data_worker, tasks, f"Augmenting Data {run_suffix}")
 
-    def run_aug_feature_extraction(self, datasets: List[str], strategies: List[str], run_suffix: str = "") -> None:
-        """
-        Step 4: Augmented Feature Extraction.
+    def run_aug_feature_extraction(self, datasets: list[str], strategies: list[str], run_suffix: str = "") -> None:
+        """Step 4: Augmented Feature Extraction.
         Calculates features for the new data and merges with original features.
         """
         tasks = []
@@ -207,11 +201,9 @@ class PipelineManager:
 
         self._run_tasks(extract_aug_features_worker, tasks, f"Extracting Aug Features {run_suffix}")
 
-    def run_evaluation(self, datasets: List[str], strategies: List[str], run_suffix: str = "") -> Optional[str]:
-        """
-        Step 5: Training and Evaluation.
-        """
-        all_results_dfs: List[pd.DataFrame] = []
+    def run_evaluation(self, datasets: list[str], strategies: list[str], run_suffix: str = "") -> str | None:
+        """Step 5: Training and Evaluation."""
+        all_results_dfs: list[pd.DataFrame] = []
 
         os.makedirs(self.dirs["states"], exist_ok=True)
         os.makedirs(self.dirs["opt_history"], exist_ok=True)
@@ -233,8 +225,8 @@ class PipelineManager:
             else:
                 cached_params = pd.DataFrame(columns=["feature_type", "seed", "model", "best_params"])
 
-            dataset_results: List[Dict[str, Any]] = []
-            new_params_list: List[Dict[str, Any]] = []
+            dataset_results: list[dict[str, Any]] = []
+            new_params_list: list[dict[str, Any]] = []
 
             feature_types = ["trajectory_features"] + [
                 f"trajectory_features_merged_{s}{run_suffix}" for s in strategies
@@ -302,14 +294,12 @@ class PipelineManager:
 
         return None
 
-    def generate_reports(self, datasets: List[str]) -> None:
+    def generate_reports(self, datasets: list[str]) -> None:
         """Step 6: Generate final reports."""
         create_final_summary_reports(self.output_root, datasets)
 
-    def run_final_analysis(self, datasets: List[str]) -> None:
-        """
-        Step 7: Runs the final, consolidated analysis and reporting script.
-        """
+    def run_final_analysis(self, datasets: list[str]) -> None:
+        """Step 7: Runs the final, consolidated analysis and reporting script."""
         logger.info("Starting final report generation and statistical analysis...")
         for dataset in datasets:
             try:
