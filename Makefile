@@ -69,10 +69,20 @@ clean-eval: ## Delete ONLY the model evaluations, optimization history, and repo
 
 clean-dataset: ## Delete ALL generated data/results for a specific dataset (Usage: make clean-dataset DS=car_traffic)
 	@if [ -z "$(DS)" ]; then echo "Error: Please specify a dataset. Example: make clean-dataset DS=car_traffic"; exit 1; fi
+	# 1. Remove the heavy augmented data
 	rm -rf data/augmented/$(DS)
-	rm -rf data/output/optimization/details/$(DS)
+	# 2. Remove the analysis artifacts (Images and LaTeX)
 	rm -rf data/output/analysis/images/$(DS)
 	rm -rf data/output/analysis/reports/$(DS)
+	# 3. Remove the Optimization detailed results
+	rm -rf data/output/optimization/details/$(DS)
+	# 4. Remove the Optuna Database (This is what tells Optuna to start over)
+	rm -f data/output/optuna_$(DS).db
+	# 5. Remove the Model State caches (Baseline hyperparameters)
 	rm -f data/output/model_states/$(DS)_best_params.csv
+	# 6. Remove all History files (Baseline and ALL Optuna trials)
 	rm -f data/output/optimization/history/$(DS)_baseline_tuning.csv
-	@echo "Cleaned all generated data and results for $(DS)."
+	rm -f data/output/optimization/history/$(DS)_p*.csv
+	# 7. Remove any performance audits related to this dataset
+	rm -f data/output/performance/*$(DS)*_performance_audit.txt
+	@echo "Surgically cleaned all generated data, databases, and history for $(DS)."
