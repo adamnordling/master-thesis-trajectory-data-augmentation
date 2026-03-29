@@ -36,7 +36,9 @@ def validate_storage_capacity(manager: PipelineManager, datasets: list[str]) -> 
         projected_for_this_ds = raw_size_gb * 600
         total_projected_gb += projected_for_this_ds
 
-    free_gb = shutil.disk_usage(manager.output_root).free / (1024**3)
+    # Check if output root exists; if not, check the project root/current directory
+    storage_path = manager.output_root if os.path.exists(manager.output_root) else "."
+    free_gb = shutil.disk_usage(storage_path).free / (1024 ** 3)
 
     logger.info(f"Projected Disk Requirement: {total_projected_gb:.2f} GB")
     logger.info(f"Available Space on Drive:  {free_gb:.2f} GB")
