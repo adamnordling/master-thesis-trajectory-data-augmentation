@@ -41,7 +41,7 @@ trajectory-augmentation/
 
 ### 1. Prerequisite: Get Data & Clone Repository
 ```bash
-git clone git@gitlab.lnu.se:an223ym/master-thesis-trajectory-data-augmentation.git
+git clone https://github.com/adamnordling/master-thesis-trajectory-data-augmentation.git
 ```
 
 Place your raw trajectory `.csv` files into the `data/raw/` directory.
