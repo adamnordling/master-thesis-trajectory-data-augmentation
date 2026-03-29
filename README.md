@@ -24,6 +24,7 @@ trajectory-augmentation/
 │   ├── raw/                # Immutable original CSVs
 │   ├── augmented/          # Generated Feather files per seed
 │   └── output/             # Results, Logs, and Visualizations
+├── notebooks/              # Jupyter Notebooks for Analysis and Visualization
 ├── src/                    # Source Code
 │   ├── core/               # Pure logic (Geometry, Features, Outlier Math)
 │   ├── evaluation/         # Model Training & Reporting
@@ -31,8 +32,8 @@ trajectory-augmentation/
 │   ├── pipeline/           # Orchestration & Workers
 │   ├── strategies/         # Selection Strategy Implementations
 │   └── utils/              # I/O, Logging, Config Parsers
-├── tests/                  # Unit Tests
 ├── pyproject.toml          # Project dependencies and build config
+├── Makefile                # Automation for setup, running, and cleaning
 └── main.py                 # CLI Entry Point
 ```
 
